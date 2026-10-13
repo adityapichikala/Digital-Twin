@@ -4,14 +4,20 @@ const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const Redis = require('ioredis');
 const logger = require('../logger');
+const { sendError } = require('../utils/errorResponse');
 
 let store;
 
-// Use Redis-backed store in production; fall back to memory store if no REDIS_URL
-if (process.env.REDIS_URL) {
+// Connect to Redis if REDIS_URL is provided; gracefully fall back to MemoryStore
+if (process.env.REDIS_URL && process.env.NODE_ENV !== 'test') {
   try {
-    const redisClient = new Redis(process.env.REDIS_URL, { lazyConnect: true });
-    redisClient.on('error', (err) => logger.error({ message: 'Redis rate-limit error', error: err.message }));
+    const redisClient = new Redis(process.env.REDIS_URL, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 2,
+    });
+    redisClient.on('error', (err) => {
+      logger.error({ message: 'Redis rate-limit error', error: err.message });
+    });
     store = new RedisStore({
       sendCommand: (...args) => redisClient.call(...args),
     });
@@ -20,18 +26,42 @@ if (process.env.REDIS_URL) {
     logger.warn({ message: 'Could not connect to Redis for rate limiting, using memory store', error: err.message });
   }
 } else {
-  logger.warn({ message: 'REDIS_URL not set; using in-memory rate limiter (not suitable for multi-instance)' });
+  logger.warn({ message: 'REDIS_URL not set; using in-memory rate limiter store' });
 }
 
-const limiter = rateLimit({
+/**
+ * Standard rate limiter per IP (used for public auth/login endpoints).
+ */
+const ipRateLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  max: parseInt(process.env.RATE_LIMIT_MAX_IP || '60', 10),
   standardHeaders: true,
   legacyHeaders: false,
   store,
-  handler: (_req, res) => {
-    res.status(429).json({ error: 'Too many requests — please try again later' });
+  keyGenerator: (req) => req.ip || req.headers['x-forwarded-for'] || 'unknown-ip',
+  handler: (req, res) => {
+    sendError(res, 429, 'Too Many Requests', 'Too many requests from this IP — please try again later', req);
   },
 });
 
-module.exports = limiter;
+/**
+ * Rate limiter per authenticated user (falls back to IP if unauthenticated).
+ */
+const userRateLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+  max: parseInt(process.env.RATE_LIMIT_MAX_USER || '120', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store,
+  keyGenerator: (req) => {
+    if (req.user && (req.user.sub || req.user.username)) {
+      return `usr:${req.user.sub || req.user.username}`;
+    }
+    return `ip:${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`;
+  },
+  handler: (req, res) => {
+    sendError(res, 429, 'Too Many Requests', 'User rate limit exceeded — please try again later', req);
+  },
+});
+
+module.exports = { ipRateLimiter, userRateLimiter };

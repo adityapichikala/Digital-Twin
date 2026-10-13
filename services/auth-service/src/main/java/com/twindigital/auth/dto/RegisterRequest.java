@@ -18,4 +18,6 @@ public class RegisterRequest {
     @NotBlank
     @Size(min = 8)
     private String password;
+
+    private String role; // "ADMIN" or "VIEWER", defaults to VIEWER
 }

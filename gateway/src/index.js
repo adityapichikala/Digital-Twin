@@ -5,13 +5,17 @@ require('dotenv').config();
 
 const express = require('express');
 const helmet = require('helmet');
+const cors = require('cors');
 const morgan = require('morgan');
 
 const logger = require('./logger');
 const metrics = require('./middleware/metrics');
-const rateLimiter = require('./middleware/rateLimiter');
+const requestIdMiddleware = require('./middleware/requestId');
+const { ipRateLimiter, userRateLimiter } = require('./middleware/rateLimiter');
 const jwtVerify = require('./middleware/jwtVerify');
+const { requireRole } = require('./middleware/rbac');
 const errorHandler = require('./middleware/errorHandler');
+const { sendError } = require('./utils/errorResponse');
 
 const authRoutes = require('./routes/auth');
 const clusterSyncRoutes = require('./routes/clusterSync');
@@ -21,23 +25,38 @@ const costRiskRoutes = require('./routes/costRisk');
 
 const app = express();
 
-// ── Security headers ──────────────────────────────────────────────────────────
+// ── 1. Security Headers & CORS ────────────────────────────────────────────────
 app.use(helmet());
+app.use(cors({
+  origin: process.env.CORS_ALLOWED_ORIGINS ? process.env.CORS_ALLOWED_ORIGINS.split(',') : '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+  exposedHeaders: ['X-Request-Id'],
+  credentials: true,
+}));
 
-// ── Request logging (structured JSON via Winston) ─────────────────────────────
-app.use(morgan('combined', {
+// ── 2. Request ID Tracking ────────────────────────────────────────────────────
+app.use(requestIdMiddleware);
+
+// ── 3. Structured Request Logging ─────────────────────────────────────────────
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms [req: :req[x-request-id]]', {
   stream: { write: (msg) => logger.http(msg.trim()) }
 }));
 
-// ── Body parsing ──────────────────────────────────────────────────────────────
+// ── 4. Body Parsing ───────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
 
-// ── Prometheus metrics collection ─────────────────────────────────────────────
+// ── 5. Prometheus Metrics Collection ──────────────────────────────────────────
 app.use(metrics.requestMiddleware);
 
-// ── Health & metrics (public, no auth) ───────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ status: 'UP', service: 'twindigital-gateway', timestamp: new Date().toISOString() });
+// ── 6. Public Endpoints (Health & Metrics) ────────────────────────────────────
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'UP',
+    service: 'twindigital-gateway',
+    timestamp: new Date().toISOString(),
+    requestId: req.id,
+  });
 });
 
 app.get('/metrics', async (_req, res) => {
@@ -45,27 +64,44 @@ app.get('/metrics', async (_req, res) => {
   res.end(await metrics.registry.metrics());
 });
 
-// ── Rate limiting ─────────────────────────────────────────────────────────────
-app.use(rateLimiter);
+// ── 7. Public Auth Routes (Rate limited per IP, no JWT required) ──────────────
+// Allows login, register, and refresh without pre-existing JWT
+app.use('/api/v1/auth', ipRateLimiter, authRoutes);
+app.use('/api/auth', ipRateLimiter, authRoutes);
 
-// ── JWT verification (applied to all routes below) ────────────────────────────
-// Auth login/register are proxied WITHOUT the JWT middleware so users can obtain tokens
-app.use('/api/v1/auth', authRoutes);
+// ── 8. Authenticated API Gateway Routes ───────────────────────────────────────
+// All routes below require valid JWT and enforce per-user rate limiting
+app.use('/api/v1', jwtVerify, userRateLimiter);
 
-// All other API routes require a valid JWT
-app.use('/api/v1', jwtVerify);
-app.use('/api/v1/cluster', clusterSyncRoutes);
-app.use('/api/v1/topology', topologyRoutes);
-app.use('/api/v1/simulations', simulationRoutes);
-app.use('/api/v1/assessments', costRiskRoutes);
+// VIEWER and ADMIN can read topology, cluster sync state, and cost assessments
+app.use('/api/v1/topology', requireRole('VIEWER', 'ADMIN'), topologyRoutes);
+app.use('/api/v1/cluster', requireRole('VIEWER', 'ADMIN'), clusterSyncRoutes);
+app.use('/api/v1/assessments', requireRole('VIEWER', 'ADMIN'), costRiskRoutes);
 
-// ── Global error handler ──────────────────────────────────────────────────────
-app.use(errorHandler);
+// ONLY ADMIN can access simulations
+app.use('/api/v1/simulations', requireRole('ADMIN'), simulationRoutes);
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  logger.info({ message: 'Gateway started', port: PORT });
+// ── 9. Fallback 404 Handler ───────────────────────────────────────────────────
+app.use((req, res) => {
+  sendError(res, 404, 'Not Found', `Endpoint not found: ${req.method} ${req.originalUrl || req.url}`, req);
 });
 
-module.exports = { app, server }; // export for tests
+// ── 10. Global Error Handler ──────────────────────────────────────────────────
+app.use(errorHandler);
+
+// ── Server Startup ────────────────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+let server;
+
+// Only listen if not in test mode or if PORT is explicitly set
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    logger.info({ message: 'Gateway started', port: PORT });
+  });
+} else if (process.env.PORT === '0' || process.env.PORT) {
+  server = app.listen(PORT, () => {
+    logger.info({ message: 'Gateway started (test mode)', port: PORT });
+  });
+}
+
+module.exports = { app, server };

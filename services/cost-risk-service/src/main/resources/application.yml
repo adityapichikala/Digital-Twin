@@ -20,6 +20,16 @@ server:
 
 aws:
   region: ${AWS_REGION:us-east-1}
+  cost-explorer:
+    cache-ttl-minutes: ${COST_EXPLORER_CACHE_TTL_MINUTES:360}
+
+services:
+  prometheus:
+    url: ${PROMETHEUS_URL:http://localhost:9090}
+
+cost:
+  default-hourly-node-cost: ${DEFAULT_HOURLY_NODE_COST:0.0416}
+  monthly-hours: 730.0
 
 management:
   endpoints:

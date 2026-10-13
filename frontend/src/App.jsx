@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TopologyPage from './pages/TopologyPage';
 import SimulationPage from './pages/SimulationPage';
+import CostRiskPage from './pages/CostRiskPage';
 import useAuthStore from './store/authStore';
 
 function PrivateLayout({ children }) {
@@ -13,17 +14,6 @@ function PrivateLayout({ children }) {
     <div className="layout">
       <Sidebar />
       <div className="main-content">{children}</div>
-    </div>
-  );
-}
-
-function PlaceholderPage({ title }) {
-  return (
-    <div className="page-content">
-      <h2 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '0.5rem' }}>{title}</h2>
-      <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-        This page will be implemented in the next phase.
-      </p>
     </div>
   );
 }
@@ -42,7 +32,7 @@ export default function App() {
         <PrivateLayout><SimulationPage /></PrivateLayout>
       } />
       <Route path="/cost-risk" element={
-        <PrivateLayout><PlaceholderPage title="Cost & Risk Assessment" /></PrivateLayout>
+        <PrivateLayout><CostRiskPage /></PrivateLayout>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

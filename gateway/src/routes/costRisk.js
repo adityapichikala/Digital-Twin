@@ -10,7 +10,6 @@ const target = process.env.COST_RISK_SERVICE_URL || 'http://localhost:8085';
 const proxy = createProxyMiddleware({
   target,
   changeOrigin: true,
-  pathRewrite: { '^/api/v1/assessments': '/api/v1/costs' },
   on: {
     proxyReq: (proxyReq, req) => {
       if (req.id) {

@@ -78,6 +78,8 @@ app.use('/api/v1/topology', requireRole('VIEWER', 'ADMIN'), topologyRoutes);
 app.use('/api/topology', jwtVerify, userRateLimiter, requireRole('VIEWER', 'ADMIN'), topologyRoutes);
 app.use('/api/v1/cluster', requireRole('VIEWER', 'ADMIN'), clusterSyncRoutes);
 app.use('/api/v1/assessments', requireRole('VIEWER', 'ADMIN'), costRiskRoutes);
+app.use('/api/v1/cost', requireRole('VIEWER', 'ADMIN'), costRiskRoutes);
+app.use('/api/cost', jwtVerify, userRateLimiter, requireRole('VIEWER', 'ADMIN'), costRiskRoutes);
 
 // ONLY ADMIN can access simulations
 app.use('/api/v1/simulations', requireRole('ADMIN'), simulationRoutes);

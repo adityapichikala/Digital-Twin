@@ -59,19 +59,12 @@ resource "aws_iam_role_policy_attachment" "cluster_vpc_resource" {
 }
 
 # ── EKS Cluster Security Group ────────────────────────────────
+# No cross-SG inline rules here — those are added as separate
+# aws_security_group_rule resources below to break the cycle.
 resource "aws_security_group" "cluster" {
   name        = "${var.cluster_name}-cluster-sg"
   description = "EKS cluster control-plane security group"
   vpc_id      = var.vpc_id
-
-  # Allow nodes to reach the API server
-  ingress {
-    description     = "Allow nodes to reach API server"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.node.id]
-  }
 
   egress {
     from_port   = 0
@@ -160,6 +153,7 @@ resource "aws_iam_role_policy_attachment" "node_ssm" {
 }
 
 # ── Node Security Group ───────────────────────────────────────
+# Cross-SG ingress rules are defined as separate resources below.
 resource "aws_security_group" "node" {
   name        = "${var.cluster_name}-node-sg"
   description = "EKS managed node group security group"
@@ -174,15 +168,6 @@ resource "aws_security_group" "node" {
     self        = true
   }
 
-  # Allow control plane to talk to kubelet (port 10250)
-  ingress {
-    description     = "Control plane to kubelet"
-    from_port       = 10250
-    to_port         = 10250
-    protocol        = "tcp"
-    security_groups = [aws_security_group.cluster.id]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -191,6 +176,40 @@ resource "aws_security_group" "node" {
   }
 
   tags = { Name = "${var.cluster_name}-node-sg" }
+}
+
+# ── Cross-SG Rules (defined AFTER both SGs exist) ─────────────
+# Rule 1: nodes → cluster API server (port 443)
+resource "aws_security_group_rule" "nodes_to_cluster_api" {
+  type                     = "ingress"
+  description              = "Allow nodes to reach EKS API server"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.cluster.id
+  source_security_group_id = aws_security_group.node.id
+}
+
+# Rule 2: cluster → nodes kubelet (port 10250)
+resource "aws_security_group_rule" "cluster_to_nodes_kubelet" {
+  type                     = "ingress"
+  description              = "Allow control plane to reach kubelet on nodes"
+  from_port                = 10250
+  to_port                  = 10250
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.node.id
+  source_security_group_id = aws_security_group.cluster.id
+}
+
+# Rule 3: cluster → nodes webhook ports (e.g. admission webhooks)
+resource "aws_security_group_rule" "cluster_to_nodes_webhooks" {
+  type                     = "ingress"
+  description              = "Allow control plane to reach node webhook ports"
+  from_port                = 8443
+  to_port                  = 8443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.node.id
+  source_security_group_id = aws_security_group.cluster.id
 }
 
 # ── Managed Node Group ────────────────────────────────────────

@@ -1,0 +1,11 @@
+Scenario_ID,Scenario_Name,Change_Kind,Target,Predicted_Risk,Actual_Risk,Predicted_Checks,Actual_Checks,Cluster_Behavior,Outcome_Match,Accuracy_Score
+scenario-01,Moderate Scale Safe Fit,SCALE,billing-service,LOW,LOW,,,Pods scheduled successfully and in Running phase,MATCH,100.0
+scenario-02,Cluster CPU Exhaustion,SCALE,heavy-worker,CRITICAL,CRITICAL,SchedulingFit,SchedulingFit,Pods enter Pending status (0/N nodes available: Insufficient cpu),MATCH,100.0
+scenario-03,Cluster Memory Exhaustion,NEW_DEPLOYMENT,in-memory-cache,CRITICAL,CRITICAL,SchedulingFit,SchedulingFit,Pods enter Pending status (0/N nodes available: Insufficient memory),MATCH,100.0
+scenario-04,Limit Less Than Request,RESOURCE_CHANGE,auth-service,CRITICAL,CRITICAL,LimitSanity,LimitSanity,Kubernetes API Admission Webhook rejected manifest: limit cannot be less than request,MATCH,100.0
+scenario-05,Request Exceeds Largest Node,NEW_DEPLOYMENT,monolith-app,CRITICAL,CRITICAL,LimitSanity,LimitSanity,Pod permanently unschedulable (0/N nodes available: Insufficient cpu),MATCH,100.0
+scenario-06,Missing Memory Limit,RESOURCE_CHANGE,cron-job,MEDIUM,MEDIUM,LimitSanity,LimitSanity,Container accepted with warning: unconstrained memory risks node OOM-killer,MATCH,100.0
+scenario-07,Node Removal Violates PDB,NODE_REMOVAL,ip-10-0-1-10.ec2.internal,CRITICAL,CRITICAL,NodeRemovalImpact,NodeRemovalImpact,Eviction rejected: Cannot evict pod as it would violate PodDisruptionBudget (minAvailable not satisfied),MATCH,100.0
+scenario-08,Node Removal Displaced Pods Unschedulable,NODE_REMOVAL,ip-10-0-1-10.ec2.internal,CRITICAL,CRITICAL,NodeRemovalImpact,NodeRemovalImpact,Evicted pods remain unschedulable due to remaining node capacity exhaustion,MATCH,100.0
+scenario-09,HPA Max Scale Exceeds Cluster Capacity,RESOURCE_CHANGE,billing-service,HIGH,HIGH,HpaImpact,HpaImpact,HPA autoscaling to maxReplicas causes cascading scheduling starvation,MATCH,100.0
+scenario-10,Critical Auth Service Blast Radius,SCALE,auth-service,HIGH,HIGH,BlastRadius,BlastRadius,"High blast radius: upstream dependents affected (gateway, topology, simulation, cost-risk)",MATCH,100.0

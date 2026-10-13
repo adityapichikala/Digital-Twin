@@ -1,0 +1,58 @@
+# ==============================================================================
+# Cost-Optimized Helm Values for Running Jenkins & SonarQube on EKS (t3.medium nodes)
+# ==============================================================================
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 1. JENKINS HELM VALUES (Chart: jenkins/jenkins)
+# Command: helm repo add jenkins https://charts.jenkins.io
+#          helm upgrade --install jenkins jenkins/jenkins -n ci -f ci/helm-cheap-setup.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+jenkinsValues:
+  controller:
+    componentName: "jenkins-controller"
+    image: "jenkins/jenkins"
+    tag: "lts-jdk17"
+    javaOpts: "-Xms512m -Xmx1024m"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1536Mi"
+    installPlugins:
+      - "git:5.2.1"
+      - "workflow-aggregator:596.v8c21c963d92d"
+      - "sonar:2.16.1"
+      - "jacoco:3.3.6"
+      - "docker-workflow:572.v950f58993843"
+      - "kubernetes:4240.v9a_d87d461533"
+      - "kubernetes-cli:1.12.1"
+      - "htmlpublisher:1.32"
+    serviceType: ClusterIP
+    servicePort: 8080
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 2. SONARQUBE HELM VALUES (Chart: sonarqube/sonarqube)
+# Command: helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+#          helm upgrade --install sonarqube sonarqube/sonarqube -n ci -f ci/helm-cheap-setup.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+sonarqubeValues:
+  jvmOpts: "-Xms512m -Xmx768m"
+  searchJvmOpts: "-Xms512m -Xmx512m"
+  resources:
+    requests:
+      cpu: "300m"
+      memory: "1024Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1800Mi"
+  postgresql:
+    enabled: true
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "250m"
+        memory: "256Mi"

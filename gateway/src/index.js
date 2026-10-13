@@ -75,6 +75,7 @@ app.use('/api/v1', jwtVerify, userRateLimiter);
 
 // VIEWER and ADMIN can read topology, cluster sync state, and cost assessments
 app.use('/api/v1/topology', requireRole('VIEWER', 'ADMIN'), topologyRoutes);
+app.use('/api/topology', jwtVerify, userRateLimiter, requireRole('VIEWER', 'ADMIN'), topologyRoutes);
 app.use('/api/v1/cluster', requireRole('VIEWER', 'ADMIN'), clusterSyncRoutes);
 app.use('/api/v1/assessments', requireRole('VIEWER', 'ADMIN'), costRiskRoutes);
 

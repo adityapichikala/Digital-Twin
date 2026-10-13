@@ -81,6 +81,7 @@ app.use('/api/v1/assessments', requireRole('VIEWER', 'ADMIN'), costRiskRoutes);
 
 // ONLY ADMIN can access simulations
 app.use('/api/v1/simulations', requireRole('ADMIN'), simulationRoutes);
+app.use('/api/simulations', jwtVerify, userRateLimiter, requireRole('ADMIN'), simulationRoutes);
 
 // ── 9. Fallback 404 Handler ───────────────────────────────────────────────────
 app.use((req, res) => {

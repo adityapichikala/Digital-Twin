@@ -1,0 +1,178 @@
+[
+  {
+    "id": "scenario-01",
+    "name": "Moderate Scale Safe Fit",
+    "description": "Scaling billing-service from 1 to 2 replicas on cluster with 3860m surplus CPU. Perfectly fits available capacity.",
+    "inputChangeSet": {
+      "kind": "SCALE",
+      "target": "billing-service",
+      "replicas": 2,
+      "cpuRequest": "100m",
+      "memRequest": "256Mi",
+      "cpuLimit": "200m",
+      "memLimit": "512Mi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "LOW",
+      "expectedScoreMax": 15,
+      "predictedOutcomePattern": "safe to apply",
+      "failedChecks": []
+    }
+  },
+  {
+    "id": "scenario-02",
+    "name": "Cluster CPU Exhaustion",
+    "description": "Scaling worker to 6 replicas requiring 6000m CPU total when total cluster capacity is only 3860m.",
+    "inputChangeSet": {
+      "kind": "SCALE",
+      "target": "heavy-worker",
+      "replicas": 6,
+      "cpuRequest": "1000m",
+      "memRequest": "512Mi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "CRITICAL",
+      "expectedScoreMin": 45,
+      "predictedOutcomePattern": "Pending",
+      "failedChecks": ["SchedulingFit"]
+    }
+  },
+  {
+    "id": "scenario-03",
+    "name": "Cluster Memory Exhaustion",
+    "description": "Deploying 3 pods requesting 4Gi RAM each (12Gi total) when cluster total allocatable RAM is 7.6Gi.",
+    "inputChangeSet": {
+      "kind": "NEW_DEPLOYMENT",
+      "target": "in-memory-cache",
+      "replicas": 3,
+      "cpuRequest": "200m",
+      "memRequest": "4Gi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "CRITICAL",
+      "expectedScoreMin": 45,
+      "predictedOutcomePattern": "Pending",
+      "failedChecks": ["SchedulingFit"]
+    }
+  },
+  {
+    "id": "scenario-04",
+    "name": "Limit Less Than Request",
+    "description": "Proposing CPU limit 200m with CPU request 500m, and Memory limit 512Mi with request 1Gi. Rejected by Kubernetes.",
+    "inputChangeSet": {
+      "kind": "RESOURCE_CHANGE",
+      "target": "auth-service",
+      "cpuRequest": "500m",
+      "cpuLimit": "200m",
+      "memRequest": "1Gi",
+      "memLimit": "512Mi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "CRITICAL",
+      "expectedScoreMin": 45,
+      "predictedOutcomePattern": "Limit cannot be less than request",
+      "failedChecks": ["LimitSanity"]
+    }
+  },
+  {
+    "id": "scenario-05",
+    "name": "Request Exceeds Largest Node",
+    "description": "Single pod CPU request of 4000m when largest worker node has 1930m allocatable CPU. Pod can never be scheduled.",
+    "inputChangeSet": {
+      "kind": "NEW_DEPLOYMENT",
+      "target": "monolith-app",
+      "cpuRequest": "4000m",
+      "memRequest": "2Gi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "CRITICAL",
+      "expectedScoreMin": 45,
+      "predictedOutcomePattern": "request exceeds largest node capacity",
+      "failedChecks": ["LimitSanity"]
+    }
+  },
+  {
+    "id": "scenario-06",
+    "name": "Missing Memory Limit",
+    "description": "Defining container CPU/Memory requests but omitting memory limit, risking node OOM-killer termination.",
+    "inputChangeSet": {
+      "kind": "RESOURCE_CHANGE",
+      "target": "cron-job",
+      "cpuRequest": "100m",
+      "memRequest": "256Mi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "MEDIUM",
+      "expectedScoreMin": 15,
+      "predictedOutcomePattern": "elevated operational caution",
+      "failedChecks": ["LimitSanity"]
+    }
+  },
+  {
+    "id": "scenario-07",
+    "name": "Node Removal Violates PDB",
+    "description": "Removing node hosting auth-service when its PodDisruptionBudget allows 0 disruptions.",
+    "inputChangeSet": {
+      "kind": "NODE_REMOVAL",
+      "target": "ip-10-0-1-10.ec2.internal"
+    },
+    "expectedOutcome": {
+      "riskLevel": "CRITICAL",
+      "expectedScoreMin": 45,
+      "predictedOutcomePattern": "violates PodDisruptionBudget",
+      "failedChecks": ["NodeRemovalImpact"]
+    }
+  },
+  {
+    "id": "scenario-08",
+    "name": "Node Removal Displaced Pods Unschedulable",
+    "description": "Removing node-1 with 3 pods requiring 1800m CPU when remaining node-2 only has 130m available CPU surplus.",
+    "inputChangeSet": {
+      "kind": "NODE_REMOVAL",
+      "target": "ip-10-0-1-10.ec2.internal"
+    },
+    "expectedOutcome": {
+      "riskLevel": "CRITICAL",
+      "expectedScoreMin": 45,
+      "predictedOutcomePattern": "Evicted pods cannot be rescheduled",
+      "failedChecks": ["NodeRemovalImpact"]
+    }
+  },
+  {
+    "id": "scenario-09",
+    "name": "HPA Max Scale Exceeds Cluster Capacity",
+    "description": "Target deployment has HPA with maxReplicas 8. Proposing 800m CPU per pod requires 6400m at peak, exceeding cluster total of 3860m.",
+    "inputChangeSet": {
+      "kind": "RESOURCE_CHANGE",
+      "target": "billing-service",
+      "cpuRequest": "800m",
+      "cpuLimit": "1000m",
+      "memRequest": "512Mi",
+      "memLimit": "1Gi"
+    },
+    "expectedOutcome": {
+      "riskLevel": "HIGH",
+      "expectedScoreMin": 25,
+      "predictedOutcomePattern": "significant risk",
+      "failedChecks": ["HpaImpact"]
+    }
+  },
+  {
+    "id": "scenario-10",
+    "name": "Critical Auth Service Blast Radius",
+    "description": "Modifying core auth-service identity provider which has multiple upstream callers across the microservices mesh.",
+    "inputChangeSet": {
+      "kind": "SCALE",
+      "target": "auth-service",
+      "cpuRequest": "150m",
+      "memRequest": "256Mi",
+      "replicas": 3
+    },
+    "expectedOutcome": {
+      "riskLevel": "HIGH",
+      "expectedScoreMin": 25,
+      "predictedOutcomePattern": "significant risk",
+      "failedChecks": ["BlastRadius"]
+    }
+  }
+]

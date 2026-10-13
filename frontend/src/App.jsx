@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TopologyPage from './pages/TopologyPage';
+import SimulationPage from './pages/SimulationPage';
 import useAuthStore from './store/authStore';
 
 function PrivateLayout({ children }) {
@@ -38,7 +39,7 @@ export default function App() {
         <PrivateLayout><TopologyPage /></PrivateLayout>
       } />
       <Route path="/simulate" element={
-        <PrivateLayout><PlaceholderPage title="Simulation Workbench" /></PrivateLayout>
+        <PrivateLayout><SimulationPage /></PrivateLayout>
       } />
       <Route path="/cost-risk" element={
         <PrivateLayout><PlaceholderPage title="Cost & Risk Assessment" /></PrivateLayout>

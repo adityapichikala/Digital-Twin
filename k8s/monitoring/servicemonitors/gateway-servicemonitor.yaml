@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: twindigital-gateway-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: twindigital-gateway
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  # Target services in twindigital and default namespaces
+  namespaceSelector:
+    matchNames:
+      - default
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: twindigital-gateway
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "(http_requests_total|http_request_duration_seconds.*|nodejs_.*|process_.*)"
+          action: keep
+---
+# Companion Kubernetes Service for the Gateway (Port 3000)
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: twindigital-gateway
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: twindigital-gateway

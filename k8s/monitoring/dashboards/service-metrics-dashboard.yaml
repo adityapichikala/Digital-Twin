@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-service-metrics
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: service-metrics-dashboard
+    app.kubernetes.io/part-of: twindigital
+data:
+  service-metrics.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 200,
+          "title": "API Gateway Metrics",
+          "type": "row"
+        },
+        {
+          "id": 11,
+          "title": "Gateway Request Rate (req/sec)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum by (status) (rate(http_requests_total[5m]))",
+              "legendFormat": "HTTP {{status}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "lineInterpolation": "smooth" },
+              "unit": "reqps"
+            }
+          }
+        },
+        {
+          "id": 12,
+          "title": "Gateway Latency (P50, P95, P99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) * 1000",
+              "legendFormat": "P50 Latency",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) * 1000",
+              "legendFormat": "P95 Latency",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) * 1000",
+              "legendFormat": "P99 Latency",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line" },
+              "unit": "ms"
+            }
+          }
+        },
+        {
+          "id": 13,
+          "title": "Gateway 5xx Error Rate (%)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+          "targets": [
+            {
+              "expr": "(sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+              "legendFormat": "Gateway 5xx %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 20 },
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+          "id": 201,
+          "title": "Spring Boot Microservices Performance",
+          "type": "row"
+        },
+        {
+          "id": 14,
+          "title": "Microservices Throughput (RPS by Application)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+          "targets": [
+            {
+              "expr": "sum by (application) (rate(http_server_requests_seconds_count[5m]))",
+              "legendFormat": "{{application}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "lineInterpolation": "smooth" },
+              "unit": "reqps"
+            }
+          }
+        },
+        {
+          "id": 15,
+          "title": "Microservices P95 Latency by Service (ms)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket[5m]))) * 1000",
+              "legendFormat": "{{application}} P95",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line" },
+              "unit": "ms"
+            }
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+          "id": 202,
+          "title": "JVM Resources (Spring Boot)",
+          "type": "row"
+        },
+        {
+          "id": 16,
+          "title": "JVM Heap Memory Used",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+          "targets": [
+            {
+              "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\"})",
+              "legendFormat": "{{application}} Heap",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15 },
+              "unit": "bytes"
+            }
+          }
+        },
+        {
+          "id": 17,
+          "title": "JVM GC Pause Rate (sec/s)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+          "targets": [
+            {
+              "expr": "sum by (application) (rate(jvm_gc_pause_seconds_sum[5m]))",
+              "legendFormat": "{{application}} GC Pause",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line" },
+              "unit": "s"
+            }
+          }
+        }
+      ],
+      "refresh": "15s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["twindigital", "microservices", "latency", "errors"],
+      "time": { "from": "now-30m", "to": "now" },
+      "timezone": "browser",
+      "title": "TwinDigital - Microservices Latency & Error Rate",
+      "uid": "twindigital-service-metrics"
+    }

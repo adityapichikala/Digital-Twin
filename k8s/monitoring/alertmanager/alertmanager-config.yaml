@@ -1,0 +1,61 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: twindigital-alertmanager-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager-config
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  route:
+    groupBy: ['alertname', 'namespace', 'job', 'severity']
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    receiver: ses-email-alerts
+    routes:
+      - matchers:
+          - name: severity
+            value: critical
+        receiver: ses-critical-alerts
+        repeatInterval: 1h
+      - matchers:
+          - name: severity
+            value: warning
+        receiver: ses-email-alerts
+        repeatInterval: 4h
+  receivers:
+    - name: ses-email-alerts
+      emailConfigs:
+        - to: "devops-team@twindigital.io"
+          from: "alerts@twindigital.io"
+          smarthost: "email-smtp.ap-south-1.amazonaws.com:587"
+          requireTLS: true
+          sendResolved: true
+          authUsername:
+            name: alertmanager-ses-smtp
+            key: smtp-username
+          authPassword:
+            name: alertmanager-ses-smtp
+            key: smtp-password
+          headers:
+            - key: Subject
+              value: "[TwinDigital Alert - {{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .CommonLabels.severity }})"
+
+    - name: ses-critical-alerts
+      emailConfigs:
+        - to: "oncall@twindigital.io"
+          from: "alerts@twindigital.io"
+          smarthost: "email-smtp.ap-south-1.amazonaws.com:587"
+          requireTLS: true
+          sendResolved: true
+          authUsername:
+            name: alertmanager-ses-smtp
+            key: smtp-username
+          authPassword:
+            name: alertmanager-ses-smtp
+            key: smtp-password
+          headers:
+            - key: Subject
+              value: "🚨 [CRITICAL - {{ .Status | toUpper }}] TwinDigital Cluster Alert: {{ .GroupLabels.alertname }}"

@@ -1,0 +1,214 @@
+# ==============================================================================
+# kube-prometheus-stack Helm Values for TwinDigital (Amazon EKS)
+# Target Architecture: 2x t3.medium nodes (4 vCPU, 8 GiB RAM total)
+# Scrape Interval: 15s | Retention: 15d | Grafana & Alertmanager Enabled
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Global Settings
+# ------------------------------------------------------------------------------
+global:
+  rbac:
+    create: true
+  imageRegistry: ""
+
+# ------------------------------------------------------------------------------
+# Prometheus Operator Deployment
+# ------------------------------------------------------------------------------
+prometheusOperator:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 100Mi
+  nodeSelector: {}
+  tolerations: []
+
+# ------------------------------------------------------------------------------
+# Prometheus Instance Configuration
+# ------------------------------------------------------------------------------
+prometheus:
+  enabled: true
+  prometheusSpec:
+    # Requirement: 15s scrape interval & evaluation interval
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+
+    # Requirement: 15d data retention
+    retention: 15d
+    retentionSize: 15Gi
+
+    # Match ServiceMonitors across all namespaces without label restrictions
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    # Match PodMonitors and PrometheusRules across all namespaces
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+
+    # Mount Alertmanager SES SMTP credentials secret into Prometheus/Alertmanager
+    secrets:
+      - alertmanager-ses-smtp
+
+    # Sized for t3.medium EKS nodes (2 vCPU, 4 GiB per node)
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1536Mi
+
+    # Storage: EBS gp3 PVC for metrics persistence
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    enableAdminAPI: false
+
+# ------------------------------------------------------------------------------
+# Alertmanager Configuration
+# ------------------------------------------------------------------------------
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    replicas: 1
+    # Secrets to mount into /etc/alertmanager/secrets/<secret-name>
+    secrets:
+      - alertmanager-ses-smtp
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+  # Alertmanager Config routing to AWS SES SMTP
+  # Note: Sensitive auth_password loaded from mounted secret in alertmanager-config.yaml
+  config:
+    global:
+      resolve_timeout: 5m
+      smtp_from: "alerts@twindigital.io"
+      smtp_smarthost: "email-smtp.ap-south-1.amazonaws.com:587"
+      smtp_require_tls: true
+      # In raw config, credentials can point to mounted file or use AlertmanagerConfig CRD
+      smtp_auth_username: "SES_SMTP_USERNAME_PLACEHOLDER"
+      smtp_auth_password_file: "/etc/alertmanager/secrets/alertmanager-ses-smtp/smtp-password"
+
+    route:
+      group_by: ['alertname', 'namespace', 'job', 'severity']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: "email-ses"
+      routes:
+        - match:
+            severity: critical
+          receiver: "email-ses-critical"
+          repeat_interval: 1h
+        - match:
+            severity: warning
+          receiver: "email-ses"
+          repeat_interval: 4h
+
+    receivers:
+      - name: "email-ses"
+        email_configs:
+          - to: "devops-team@twindigital.io"
+            send_resolved: true
+            headers:
+              Subject: '[TwinDigital Alert - {{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .CommonLabels.severity }})'
+
+      - name: "email-ses-critical"
+        email_configs:
+          - to: "oncall@twindigital.io"
+            send_resolved: true
+            headers:
+              Subject: '🚨 [CRITICAL - {{ .Status | toUpper }}] TwinDigital Cluster Alert: {{ .GroupLabels.alertname }}'
+
+# ------------------------------------------------------------------------------
+# Grafana Configuration
+# ------------------------------------------------------------------------------
+grafana:
+  enabled: true
+  adminPassword: "admin-changeme-prompt"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+  persistence:
+    enabled: true
+    storageClassName: gp3
+    size: 5Gi
+
+  # Automatic dashboard discovery via Sidecar
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      folder: /tmp/dashboards
+      defaultFolderName: "TwinDigital Dashboards"
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/"
+      serve_from_sub_path: false
+    security:
+      allow_embedding: false
+      cookie_secure: false
+    users:
+      allow_sign_up: false
+      auto_assign_org_role: Viewer
+
+# ------------------------------------------------------------------------------
+# Node Exporter & kube-state-metrics (Slim resource profiles)
+# ------------------------------------------------------------------------------
+nodeExporter:
+  enabled: true
+  resources:
+    requests:
+      cpu: 30m
+      memory: 32Mi
+    limits:
+      cpu: 80m
+      memory: 64Mi
+
+kube-state-metrics:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

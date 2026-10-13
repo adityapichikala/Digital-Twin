@@ -1,0 +1,160 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-cluster-overview
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: cluster-overview-dashboard
+    app.kubernetes.io/part-of: twindigital
+data:
+  cluster-overview.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 100,
+          "title": "Cluster Infrastructure Overview",
+          "type": "row"
+        },
+        {
+          "id": 1,
+          "title": "Node CPU Utilization (%)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+          "targets": [
+            {
+              "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 15 },
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 85 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Node Memory Utilization (%)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+          "targets": [
+            {
+              "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 15 },
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 75 },
+                  { "color": "red", "value": 85 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Pod Status Distribution",
+          "type": "piechart",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum by (phase) (kube_pod_status_phase)",
+              "legendFormat": "{{phase}}",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+            "pieType": "donut"
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+          "id": 101,
+          "title": "Pod Health & Restarts",
+          "type": "row"
+        },
+        {
+          "id": 4,
+          "title": "Pod Restarts (Past 1h)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+          "targets": [
+            {
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"twindigital|default\"}[1h]) > 0",
+              "legendFormat": "{{pod}} ({{container}})",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "bars", "fillOpacity": 40 },
+              "unit": "short"
+            }
+          }
+        },
+        {
+          "id": 5,
+          "title": "Node Filesystem Usage (%)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+          "targets": [
+            {
+              "expr": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * 100)",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line" },
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            }
+          }
+        }
+      ],
+      "refresh": "15s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["twindigital", "kubernetes", "cluster"],
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": { "refresh_intervals": ["5s", "15s", "30s", "1m", "5m"] },
+      "timezone": "browser",
+      "title": "TwinDigital - Kubernetes Cluster Overview",
+      "uid": "twindigital-cluster-overview"
+    }

@@ -1,0 +1,221 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-cost-trend
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: cost-trend-dashboard
+    app.kubernetes.io/part-of: twindigital
+data:
+  cost-trend.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 300,
+          "title": "Digital Twin Cost & Optimization KPIs",
+          "type": "row"
+        },
+        {
+          "id": 21,
+          "title": "Estimated Monthly Cost (Live)",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 8, "x": 0, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(twin_cost_estimated_usd{scenario=\"live\"}) or sum(twin_cost_estimated_usd)",
+              "legendFormat": "Live Monthly Cost",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "color": { "mode": "palette-classic" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 200 },
+                  { "color": "red", "value": 500 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 22,
+          "title": "Overprovisioned Pods Count",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 8, "x": 8, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(twin_overprovisioned_pods)",
+              "legendFormat": "Overprovisioned Pods",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 3 },
+                  { "color": "red", "value": 8 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "values": false, "calcs": ["lastNotNull"] }
+          }
+        },
+        {
+          "id": 23,
+          "title": "Simulation Cost Delta ($/mo)",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 8, "x": 16, "y": 1 },
+          "targets": [
+            {
+              "expr": "(sum(twin_cost_estimated_usd{scenario=\"simulation\"}) - sum(twin_cost_estimated_usd{scenario=\"live\"})) or 0",
+              "legendFormat": "Simulation Impact",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 20 },
+                  { "color": "red", "value": 50 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": { "values": false, "calcs": ["lastNotNull"] }
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+          "id": 301,
+          "title": "Cost Trends & Workload Attribution",
+          "type": "row"
+        },
+        {
+          "id": 24,
+          "title": "Estimated Cost Trend by Scenario (USD/mo)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum by (scenario) (twin_cost_estimated_usd)",
+              "legendFormat": "Scenario: {{scenario}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "lineInterpolation": "smooth" },
+              "unit": "currencyUSD"
+            }
+          }
+        },
+        {
+          "id": 25,
+          "title": "Monthly Cost Breakdown by Service / Namespace",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+          "targets": [
+            {
+              "expr": "sum by (namespace, service) (twin_cost_estimated_usd)",
+              "legendFormat": "{{namespace}} / {{service}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "bars", "fillOpacity": 45 },
+              "unit": "currencyUSD"
+            }
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+          "id": 302,
+          "title": "Overprovisioning & Sizing Efficiency",
+          "type": "row"
+        },
+        {
+          "id": 26,
+          "title": "Overprovisioned Pods by Service",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "sum by (service) (twin_overprovisioned_pods)",
+              "legendFormat": "{{service}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "bars", "fillOpacity": 50 },
+              "unit": "short"
+            }
+          }
+        },
+        {
+          "id": 27,
+          "title": "Cluster Resource Request vs Allocatable Efficiency (%)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "expr": "(sum(kube_pod_container_resource_requests{resource=\"cpu\"}) / sum(kube_node_status_allocatable{resource=\"cpu\"})) * 100",
+              "legendFormat": "CPU Requested %",
+              "refId": "A"
+            },
+            {
+              "expr": "(sum(kube_pod_container_resource_requests{resource=\"memory\"}) / sum(kube_node_status_allocatable{resource=\"memory\"})) * 100",
+              "legendFormat": "Memory Requested %",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line" },
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            }
+          }
+        }
+      ],
+      "refresh": "1m",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["twindigital", "finops", "cost", "twin_cost_estimated_usd", "twin_overprovisioned_pods"],
+      "time": { "from": "now-6h", "to": "now" },
+      "timezone": "browser",
+      "title": "TwinDigital - FinOps & Simulation Cost Trends",
+      "uid": "twindigital-cost-trend"
+    }

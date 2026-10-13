@@ -1,0 +1,113 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: twindigital-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: twindigital-alerts
+    app.kubernetes.io/part-of: twindigital
+    role: alert-rules
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: twindigital.cluster.rules
+      rules:
+        # ----------------------------------------------------------------------
+        # Alert 1: Pod restarts > 3 in 5m
+        # ----------------------------------------------------------------------
+        - alert: PodFrequentRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace=~"twindigital|default"}[5m]) > 3
+          for: 1m
+          labels:
+            severity: warning
+            team: platform-core
+          annotations:
+            summary: "Pod {{ $labels.pod }} container {{ $labels.container }} restarted > 3 times in 5m"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has experienced {{ $value | printf \"%.0f\" }} restarts over the past 5 minutes. Possible crashloop or OOM kill."
+            runbook_url: "https://docs.twindigital.io/runbooks/pod-restarts"
+
+        # ----------------------------------------------------------------------
+        # Alert 2: Node memory pressure > 2m
+        # ----------------------------------------------------------------------
+        - alert: NodeMemoryPressureCondition
+          expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-core
+          annotations:
+            summary: "Node {{ $labels.node }} under kernel memory pressure condition"
+            description: "Node {{ $labels.node }} has reported Kubelet MemoryPressure condition for more than 2 minutes."
+            runbook_url: "https://docs.twindigital.io/runbooks/node-memory-pressure"
+
+        - alert: NodeMemoryUsageCritical
+          expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-core
+          annotations:
+            summary: "Node {{ $labels.instance }} memory usage > 85% for 2m"
+            description: "Node {{ $labels.instance }} has less than 15% available memory (currently {{ $value | printf \"%.1f\" }}% utilized) on t3.medium node for over 2 minutes."
+            runbook_url: "https://docs.twindigital.io/runbooks/node-memory-pressure"
+
+        # ----------------------------------------------------------------------
+        # Alert 3: API error rate > 5%
+        # ----------------------------------------------------------------------
+        - alert: GatewayHighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total[5m]))
+            ) * 100 > 5
+          for: 2m
+          labels:
+            severity: critical
+            team: gateway-api
+          annotations:
+            summary: "API Gateway HTTP 5xx error rate exceeds 5%"
+            description: "The TwinDigital API Gateway is returning 5xx responses at {{ $value | printf \"%.2f\" }}% of all traffic over the last 5 minutes (threshold: 5%)."
+            runbook_url: "https://docs.twindigital.io/runbooks/high-error-rate"
+
+        - alert: MicroserviceHighErrorRate
+          expr: |
+            (
+              sum by (service) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+              /
+              sum by (service) (rate(http_server_requests_seconds_count[5m]))
+            ) * 100 > 5
+          for: 2m
+          labels:
+            severity: critical
+            team: backend-services
+          annotations:
+            summary: "Service {{ $labels.service }} HTTP 5xx error rate exceeds 5%"
+            description: "Spring Boot microservice {{ $labels.service }} has a 5xx error rate of {{ $value | printf \"%.2f\" }}% over the last 5 minutes."
+            runbook_url: "https://docs.twindigital.io/runbooks/high-error-rate"
+
+        # ----------------------------------------------------------------------
+        # Supporting alerts for TwinDigital reliability
+        # ----------------------------------------------------------------------
+        - alert: ServiceInstanceDown
+          expr: up{job=~"twindigital.*|.*service"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: platform-core
+          annotations:
+            summary: "Target {{ $labels.job }} ({{ $labels.instance }}) is unreachable"
+            description: "Prometheus scrape target {{ $labels.instance }} has been down for over 1 minute."
+            runbook_url: "https://docs.twindigital.io/runbooks/target-down"
+
+        - alert: SimulationLatencyP99High
+          expr: |
+            histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{uri=~".*simulate.*"}[5m]))) > 2
+          for: 3m
+          labels:
+            severity: warning
+            team: simulation-team
+          annotations:
+            summary: "Simulation P99 response time > 2 seconds"
+            description: "TwinDigital what-if simulation P99 latency is currently {{ $value | printf \"%.2f\" }}s over 5m."
+            runbook_url: "https://docs.twindigital.io/runbooks/simulation-latency"

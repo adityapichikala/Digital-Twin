@@ -1,0 +1,204 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: twindigital-auth-service-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auth-service
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: auth-service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: twindigital-cluster-sync-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cluster-sync-service
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-sync-service
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-sync-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cluster-sync-service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: twindigital-topology-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: topology-service
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: topology-service
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: topology-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: topology-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: topology-service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: twindigital-simulation-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: simulation-service
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: simulation-service
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simulation-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: simulation-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: simulation-service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: twindigital-cost-risk-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cost-risk-service
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cost-risk-service
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cost-risk-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cost-risk-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cost-risk-service

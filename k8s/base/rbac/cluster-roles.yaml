@@ -1,0 +1,61 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-sync-service-role
+  labels:
+    app.kubernetes.io/name: cluster-sync-service
+    app.kubernetes.io/part-of: twindigital
+rules:
+  # 1. Core API group: Nodes, Pods, Services
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - pods
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+
+  # 2. Apps API group: Deployments
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+
+  # 3. Autoscaling API group: HorizontalPodAutoscalers
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+
+  # 4. Policy API group: PodDisruptionBudgets
+  - apiGroups: ["policy"]
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-sync-service-binding
+  labels:
+    app.kubernetes.io/name: cluster-sync-service
+    app.kubernetes.io/part-of: twindigital
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-sync-service-role
+subjects:
+  - kind: ServiceAccount
+    name: cluster-sync-service-sa
+    namespace: twindigital

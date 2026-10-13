@@ -1,0 +1,18 @@
+# ==============================================================================
+# Default-Deny NetworkPolicy for twindigital namespace
+# Blocks ALL incoming and ALL outgoing traffic by default.
+# Pods can only communicate if explicitly allowed by fine-grained policies below.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/part-of: twindigital
+    security.twindigital.io/policy: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

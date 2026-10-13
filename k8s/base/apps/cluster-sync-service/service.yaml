@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-sync-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync-service
+    app.kubernetes.io/part-of: twindigital
+    app.kubernetes.io/component: microservice
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8082"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cluster-sync-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+      protocol: TCP

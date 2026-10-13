@@ -1,0 +1,29 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: simulation-service-dryrun-role
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: simulation-service
+    app.kubernetes.io/part-of: twindigital
+rules:
+  # Allows simulation-service to execute server-side dry-run checks (dryRun=All)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "update", "patch", "get"]
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["create", "update", "patch", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-config-reader-role
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/part-of: twindigital
+rules:
+  # Minimal namespace-scoped permission to read application ConfigMaps
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]

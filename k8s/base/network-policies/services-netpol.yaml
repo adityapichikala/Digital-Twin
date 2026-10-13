@@ -1,0 +1,163 @@
+# ==============================================================================
+# NetworkPolicies for Internal Microservices, PostgreSQL, and Redis
+# ==============================================================================
+
+# 1. AUTH SERVICE
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-service-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: auth-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: auth-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+      ports:
+        - protocol: TCP
+          port: 8081
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# 2. TOPOLOGY SERVICE
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: topology-service-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: topology-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: topology-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: simulation-service
+      ports:
+        - protocol: TCP
+          port: 8083
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# 3. SIMULATION SERVICE
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: simulation-service-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: simulation-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: simulation-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+      ports:
+        - protocol: TCP
+          port: 8084
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: topology-service
+      ports:
+        - protocol: TCP
+          port: 8083
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cost-risk-service
+      ports:
+        - protocol: TCP
+          port: 8085
+    # K8s API server egress for server-side dry-run (dryRun=All)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+          podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+---
+# 4. POSTGRESQL & REDIS INGRESS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: datastores-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/part-of: twindigital
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: ["postgres", "redis"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: twindigital
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379

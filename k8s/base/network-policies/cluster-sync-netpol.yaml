@@ -1,0 +1,61 @@
+# ==============================================================================
+# NetworkPolicy for Cluster Sync Service
+# Ingress: gateway (8082)
+# Egress: Kubernetes API Server (port 443 / 6443) and PostgreSQL (5432)
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cluster-sync-service-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-sync-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+      ports:
+        - protocol: TCP
+          port: 8082
+  egress:
+    # 1. Egress to Kubernetes API Server (for Informers watch & list)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+          podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+    - to:
+        - ipBlock:
+            # VPC / Control plane CIDR fallback for managed EKS control plane
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    # 2. Egress to PostgreSQL database
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432

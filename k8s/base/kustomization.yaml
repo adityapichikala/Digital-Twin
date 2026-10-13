@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - rbac
+  - network-policies
+  - apps/gateway
+  - apps/auth-service
+  - apps/cluster-sync-service
+  - apps/topology-service
+  - apps/simulation-service
+  - apps/cost-risk-service
+  - apps/frontend
+  - ingress
+  - external-secrets

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: topology-service
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: topology-service
+    app.kubernetes.io/part-of: twindigital
+    app.kubernetes.io/component: microservice
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8083"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: topology-service
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http
+      protocol: TCP

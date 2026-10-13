@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: twindigital
+  labels:
+    name: twindigital
+    app.kubernetes.io/part-of: twindigital
+    # Pod Security Admission - Restricted profile (enforces non-root, read-only rootfs, drop capabilities, seccomp)
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

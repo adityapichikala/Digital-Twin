@@ -1,0 +1,70 @@
+# ==============================================================================
+# NetworkPolicy for Cost Risk Service
+# Ingress: gateway (8085) and simulation-service (8085)
+# Egress: Prometheus (9090), PostgreSQL (5432), and AWS Endpoints (HTTPS 443)
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cost-risk-service-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cost-risk-service
+    app.kubernetes.io/part-of: twindigital
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cost-risk-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: simulation-service
+      ports:
+        - protocol: TCP
+          port: 8085
+  egress:
+    # 1. Prometheus HTTP API in monitoring namespace (or cluster)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
+    # Also support in-cluster prometheus in twindigital namespace if local
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
+    # 2. Database egress
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # 3. AWS Cost Explorer API (External HTTPS 443 via IRSA)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

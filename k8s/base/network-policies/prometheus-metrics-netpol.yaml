@@ -1,0 +1,47 @@
+# ==============================================================================
+# NetworkPolicy for Prometheus Scraping
+# Ingress: Allows Prometheus in monitoring namespace to scrape metrics on 8080-8085
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/part-of: twindigital
+    security.twindigital.io/policy: monitoring
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - gateway
+          - auth-service
+          - cluster-sync-service
+          - topology-service
+          - simulation-service
+          - cost-risk-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8083
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085

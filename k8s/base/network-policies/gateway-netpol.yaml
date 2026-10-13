@@ -1,0 +1,77 @@
+# ==============================================================================
+# NetworkPolicy for API Gateway
+# Ingress: Ingress-Nginx Controller (port 8080)
+# Egress: Microservices (8081-8085) and Redis (6379)
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-netpol
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: twindigital
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # 1. Allow traffic from NGINX Ingress Controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # 1. Egress to Backend Microservices in twindigital namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: auth-service
+      ports:
+        - protocol: TCP
+          port: 8081
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cluster-sync-service
+      ports:
+        - protocol: TCP
+          port: 8082
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: topology-service
+      ports:
+        - protocol: TCP
+          port: 8083
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: simulation-service
+      ports:
+        - protocol: TCP
+          port: 8084
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cost-risk-service
+      ports:
+        - protocol: TCP
+          port: 8085
+    # 2. Egress to Redis for rate-limiting
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379

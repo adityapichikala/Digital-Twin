@@ -20,10 +20,18 @@ server:
 
 cluster:
   sync:
-    interval-seconds: ${SYNC_INTERVAL_SECONDS:30}
+    cluster-name: ${EKS_CLUSTER_NAME:twindigital-cluster}
+    region: ${AWS_REGION:ap-south-1}
+    kubeconfig-path: ${KUBECONFIG:}
+    kubeconfig-base64: ${KUBECONFIG_BASE64:}
+    stale-threshold-seconds: ${STALE_THRESHOLD_SECONDS:120}
+    reconnect-initial-delay-seconds: ${RECONNECT_INITIAL_DELAY_SECONDS:1}
+    reconnect-max-delay-seconds: ${RECONNECT_MAX_DELAY_SECONDS:60}
+    reconnect-multiplier: ${RECONNECT_MULTIPLIER:2.0}
+    auto-start: ${CLUSTER_SYNC_AUTO_START:true}
   eks:
     cluster-name: ${EKS_CLUSTER_NAME:twindigital-cluster}
-    region: ${AWS_REGION:us-east-1}
+    region: ${AWS_REGION:ap-south-1}
 
 management:
   endpoints:

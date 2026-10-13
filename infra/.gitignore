@@ -1,0 +1,29 @@
+# Terraform-specific ignores
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+tfplan
+.terraform.lock.hcl
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Sensitive files — never commit these
+*.tfvars.local
+secrets.auto.tfvars
+
+# Bootstrap state lives locally (not in remote backend)
+# Store it in a secure location manually
+bootstrap/terraform.tfstate
+bootstrap/terraform.tfstate.backup
+bootstrap/.terraform/
+bootstrap/.terraform.lock.hcl
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+*.iml

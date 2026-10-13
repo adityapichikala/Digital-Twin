@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: simulation-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/twindigital}
+    username: ${SPRING_DATASOURCE_USERNAME:twindigital}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+server:
+  port: ${SERVER_PORT:8084}
+
+services:
+  topology:
+    url: ${TOPOLOGY_SERVICE_URL:http://localhost:8083}
+  cost-risk:
+    url: ${COST_RISK_SERVICE_URL:http://localhost:8085}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      console: json
+  level:
+    root: INFO
+    com.twindigital: DEBUG

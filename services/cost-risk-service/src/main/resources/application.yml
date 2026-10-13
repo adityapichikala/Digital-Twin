@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: cost-risk-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/twindigital}
+    username: ${SPRING_DATASOURCE_USERNAME:twindigital}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8085}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      console: json
+  level:
+    root: INFO
+    com.twindigital: DEBUG

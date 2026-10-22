@@ -27,9 +27,10 @@ spec:
           port: 8081
   egress:
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: postgres
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
       ports:
         - protocol: TCP
           port: 5432
@@ -69,9 +70,10 @@ spec:
           port: 8083
   egress:
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: postgres
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
       ports:
         - protocol: TCP
           port: 5432
@@ -101,9 +103,10 @@ spec:
           port: 8084
   egress:
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: postgres
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
       ports:
         - protocol: TCP
           port: 5432
@@ -121,21 +124,15 @@ spec:
       ports:
         - protocol: TCP
           port: 8085
-    # K8s API server egress for server-side dry-run (dryRun=All)
+    # K8s API server egress for server-side dry-run on VPC CIDR on port 443
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: default
-          podSelector:
-            matchLabels:
-              component: kube-apiserver
+        - ipBlock:
+            cidr: 10.0.0.0/16
       ports:
         - protocol: TCP
           port: 443
-        - protocol: TCP
-          port: 6443
 ---
-# 4. POSTGRESQL & REDIS INGRESS
+# 4. REDIS INGRESS
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -148,7 +145,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: ["postgres", "redis"]
+        values: ["redis"]
   policyTypes:
     - Ingress
   ingress:
@@ -157,7 +154,5 @@ spec:
             matchLabels:
               app.kubernetes.io/part-of: twindigital
       ports:
-        - protocol: TCP
-          port: 5432
         - protocol: TCP
           port: 6379

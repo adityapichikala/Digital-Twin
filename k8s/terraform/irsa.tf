@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.40"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -73,9 +77,9 @@ data "aws_iam_policy_document" "cost_risk_assume_role" {
 }
 
 resource "aws_iam_role" "cost_risk_role" {
-  name                 = "twindigital-cost-risk-irsa"
-  assume_role_policy   = data.aws_iam_policy_document.cost_risk_assume_role.json
-  description          = "Least-privilege IRSA role for cost-risk-service with Cost Explorer read-only access"
+  name               = "twindigital-cost-risk-irsa"
+  assume_role_policy = data.aws_iam_policy_document.cost_risk_assume_role.json
+  description        = "Least-privilege IRSA role for cost-risk-service with Cost Explorer read-only access"
 
   tags = {
     Project     = "twindigital"
@@ -104,8 +108,8 @@ data "aws_iam_policy_document" "cost_risk_policy" {
 
   # Statement 2: Explicit DENY for any other AWS services/mutations
   statement {
-    sid       = "DenyAllOtherAwsServices"
-    effect    = "Deny"
+    sid    = "DenyAllOtherAwsServices"
+    effect = "Deny"
     not_actions = [
       "ce:GetCostAndUsage",
       "ce:GetCostForecast",
@@ -159,9 +163,9 @@ data "aws_iam_policy_document" "external_secrets_assume_role" {
 }
 
 resource "aws_iam_role" "external_secrets_role" {
-  name                 = "twindigital-external-secrets-irsa"
-  assume_role_policy   = data.aws_iam_policy_document.external_secrets_assume_role.json
-  description          = "IRSA role for External Secrets Operator to sync AWS Secrets Manager"
+  name               = "twindigital-external-secrets-irsa"
+  assume_role_policy = data.aws_iam_policy_document.external_secrets_assume_role.json
+  description        = "IRSA role for External Secrets Operator to sync AWS Secrets Manager"
 
   tags = {
     Project     = "twindigital"
@@ -180,7 +184,8 @@ data "aws_iam_policy_document" "external_secrets_policy" {
       "secretsmanager:DescribeSecret"
     ]
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:twindigital/production/*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:twindigital/*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:twindigital*/*"
     ]
   }
 

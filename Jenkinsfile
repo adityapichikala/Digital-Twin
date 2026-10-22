@@ -12,7 +12,12 @@
 // ==============================================================================
 
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'twindigital/jenkins-agent:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock -u 0:0'
+        }
+    }
 
     options {
         timeout(time: 45, unit: 'MINUTES')
@@ -29,8 +34,8 @@ pipeline {
         )
         choice(
             name: 'DEPLOY_ENV',
-            choices: ['staging', 'production'],
-            description: 'Target deployment environment in Kubernetes/EKS.'
+            choices: ['staging', 'prod'],
+            description: 'Target deployment environment in Kubernetes/EKS (selects k8s overlay and namespace).'
         )
         booleanParam(
             name: 'SKIP_SECURITY_GATES',
@@ -43,7 +48,6 @@ pipeline {
         AWS_REGION                 = 'ap-south-1'
         AWS_ACCOUNT_ID             = '112233445566'
         IMAGE_REGISTRY             = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/twindigital"
-        K8S_NAMESPACE              = 'twindigital'
         STAGING_URL                = 'http://staging.twindigital.io'
         
         // Jenkins Credentials Store IDs
@@ -51,9 +55,11 @@ pipeline {
         REGISTRY_CREDENTIALS_ID    = 'aws-ecr-credentials'
         KUBECONFIG_CREDENTIALS_ID  = 'eks-kubeconfig'
         
-        // Computed dynamically
+        // Computed dynamically per build & DEPLOY_ENV
         GIT_SHORT_SHA              = ''
         SERVICES_TO_BUILD          = ''
+        OVERLAY_DIR                = ''
+        K8S_NAMESPACE              = ''
     }
 
     stages {
@@ -105,6 +111,12 @@ pipeline {
 
                     env.SERVICES_TO_BUILD = changedServices.unique().join(',')
                     echo "Target services to build and deploy: ${env.SERVICES_TO_BUILD}"
+
+                    // Select Kustomize overlay and target namespace based on DEPLOY_ENV
+                    def targetEnv = (params.DEPLOY_ENV in ['prod', 'production']) ? 'prod' : 'staging'
+                    env.OVERLAY_DIR = "k8s/overlays/${targetEnv}"
+                    env.K8S_NAMESPACE = (targetEnv == 'prod') ? 'twindigital-prod' : 'twindigital-staging'
+                    echo "DEPLOY_ENV='${params.DEPLOY_ENV}' selected Overlay='${env.OVERLAY_DIR}' and Namespace='${env.K8S_NAMESPACE}'"
                 }
             }
         }
@@ -131,6 +143,8 @@ pipeline {
                                 } else if (svc == 'frontend') {
                                     dir('frontend') {
                                         sh 'npm ci'
+                                        sh 'npm run lint'
+                                        sh 'npm run typecheck'
                                         sh 'npm run build'
                                     }
                                 } else {
@@ -199,14 +213,14 @@ pipeline {
                                 }
                             } else if (svc == 'gateway') {
                                 dir('gateway') {
+                                    // Gateway Sonar scanner runs strictly; quality gate evaluates analysis results
                                     sh """
                                         sonar-scanner \
                                           -Dsonar.projectKey=twindigital-gateway \
                                           -Dsonar.projectName="TwinDigital Gateway" \
                                           -Dsonar.sources=src \
                                           -Dsonar.tests=src/__tests__ \
-                                          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
-                                          || true
+                                          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                                     """
                                 }
                             }
@@ -360,9 +374,11 @@ pipeline {
             steps {
                 script {
                     sh 'mkdir -p zap-reports && chmod 777 zap-reports'
-                    echo "Executing OWASP ZAP Baseline DAST Scan against ${env.STAGING_URL}..."
+                    echo "Executing OWASP ZAP Baseline DAST Scan against ${env.STAGING_URL} (non-blocking advisory audit)..."
 
-                    // Run official OWASP ZAP container to produce HTML and JSON vulnerability reports
+                    // Run official OWASP ZAP container to produce HTML and JSON vulnerability reports.
+                    // Non-blocking advisory mode ('|| true'): zap-baseline.py exits with non-zero on passive warnings,
+                    // allowing security reports to be generated and published without halting the pipeline.
                     def zapExitCode = sh(
                         script: """
                             docker run --rm \
@@ -378,7 +394,7 @@ pipeline {
                         returnStatus: true
                     )
 
-                    echo "OWASP ZAP Scan completed with status: ${zapExitCode}."
+                    echo "OWASP ZAP Advisory Scan completed with status: ${zapExitCode}."
                 }
             }
             post {
@@ -402,29 +418,34 @@ pipeline {
         stage('Deploy to Kubernetes (EKS)') {
             steps {
                 script {
-                    echo "Deploying updated services to namespace: ${env.K8S_NAMESPACE} in ${params.DEPLOY_ENV}..."
+                    echo "Deploying updated services to namespace: ${env.K8S_NAMESPACE} using overlay: ${env.OVERLAY_DIR} in ${params.DEPLOY_ENV}..."
 
                     // Authenticate with Kubernetes cluster using kubeconfig credential
                     withKubeConfig([credentialsId: env.KUBECONFIG_CREDENTIALS_ID]) {
+                        // 1. Ensure target namespace exists and apply Kustomize overlay
+                        sh """
+                            kubectl create namespace ${env.K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                            kubectl apply -k ${env.OVERLAY_DIR} --namespace=${env.K8S_NAMESPACE}
+                        """
+
                         def services = env.SERVICES_TO_BUILD.split(',')
 
                         for (int i = 0; i < services.size(); i++) {
                             def svc = services[i]
                             def imageTag = "${env.IMAGE_REGISTRY}/${svc}:${env.GIT_SHORT_SHA}"
 
-                            echo "Deploying ${svc} with image: ${imageTag}..."
+                            echo "Deploying ${svc} with image: ${imageTag} to ${env.K8S_NAMESPACE}..."
                             
-                            // 1. Update container image on deployment
+                            // 2. Update container image on deployment (deprecated --record removed)
                             sh """
                                 kubectl set image deployment/${svc} \
                                   ${svc}=${imageTag} \
-                                  --namespace=${env.K8S_NAMESPACE} \
-                                  --record
+                                  --namespace=${env.K8S_NAMESPACE}
                             """
 
-                            // 2. Verify rollout status with automatic rollback on timeout or failure
+                            // 3. Verify rollout status with automatic rollback on timeout or failure
                             try {
-                                echo "Checking rollout status for deployment/${svc} (timeout: 180s)..."
+                                echo "Checking rollout status for deployment/${svc} in ${env.K8S_NAMESPACE} (timeout: 180s)..."
                                 sh """
                                     kubectl rollout status deployment/${svc} \
                                       --namespace=${env.K8S_NAMESPACE} \

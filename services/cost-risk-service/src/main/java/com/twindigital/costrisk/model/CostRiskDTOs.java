@@ -46,6 +46,8 @@ public class CostRiskDTOs {
         private List<OverprovisionedPod> overprovisionedPods = new ArrayList<>();
         private String evaluatedWindow;          // e.g. "7-day p95 PromQL"
         private Instant evaluatedAt;
+        @Builder.Default
+        private boolean dataAvailable = true;
     }
 
     @Data
@@ -87,6 +89,10 @@ public class CostRiskDTOs {
         @Builder.Default
         private List<ServiceCost> byService = new ArrayList<>();
         private Instant lastUpdated;
+        @Builder.Default
+        private boolean dataAvailable = true;
+        @Builder.Default
+        private double controlPlaneCostUsd = 73.00;
     }
 
     @Data

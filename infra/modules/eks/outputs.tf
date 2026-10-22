@@ -34,10 +34,16 @@ output "node_role_arn" {
   value       = aws_iam_role.node.arn
 }
 
-output "node_security_group_id" {
-  description = "Security group ID attached to worker nodes — used by RDS module"
-  value       = aws_security_group.node.id
+output "cluster_security_group_id" {
+  description = "EKS cluster primary security group ID (attached to cluster and worker nodes)"
+  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
+
+output "node_security_group_id" {
+  description = "Security group ID attached to worker nodes (EKS cluster primary SG)"
+  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+}
+
 
 output "kubeconfig_command" {
   description = "Run this command to update your local kubeconfig"

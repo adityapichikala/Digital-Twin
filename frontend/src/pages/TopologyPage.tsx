@@ -166,6 +166,7 @@ export default function TopologyPage() {
 
   // UI state
   const [loading, setLoading] = useState<boolean>(false);
+  const [isDemoData, setIsDemoData] = useState<boolean>(true);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [direction, setDirection] = useState<LayoutDirection>('TB');
   const [selectedNode, setSelectedNode] = useState<BackendTopologyNode | null>(null);
@@ -192,9 +193,11 @@ export default function TopologyPage() {
         setRawEdges(res.data.edges || []);
         if (res.data.health) setHealthSummary(res.data.health);
         if (res.data.staleness) setStaleness(res.data.staleness);
+        setIsDemoData(false);
       }
     } catch (err) {
       console.warn('Unable to load live topology, retaining cached data:', err);
+      setIsDemoData(true);
     } finally {
       if (!isBackground) setLoading(false);
     }
@@ -395,6 +398,41 @@ export default function TopologyPage() {
         onRefresh={() => fetchTopology(false)}
         refreshing={loading}
       />
+
+      {/* Visible DEMO DATA Banner if live topology service is offline / using fallback */}
+      {isDemoData && (
+        <div
+          style={{
+            background: 'rgba(234, 179, 8, 0.15)',
+            border: '1px solid rgba(234, 179, 8, 0.4)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '0.5rem 0.85rem',
+            margin: '0.5rem 1rem 0 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            color: '#eab308',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            zIndex: 10,
+          }}
+        >
+          <span
+            style={{
+              background: '#eab308',
+              color: '#000',
+              padding: '0.1rem 0.35rem',
+              borderRadius: '3px',
+              fontSize: '0.68rem',
+              fontWeight: 800,
+              letterSpacing: '0.05em',
+            }}
+          >
+            DEMO DATA
+          </span>
+          <span>Topology backend service is offline. Displaying static cluster graph demo data.</span>
+        </div>
+      )}
 
       {/* Main Toolbar */}
       <TopologyToolbar

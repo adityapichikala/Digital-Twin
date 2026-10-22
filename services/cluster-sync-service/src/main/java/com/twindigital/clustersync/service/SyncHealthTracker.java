@@ -4,13 +4,16 @@ import com.twindigital.clustersync.config.ClusterSyncProperties;
 import com.twindigital.clustersync.metrics.ClusterSyncMetrics;
 import com.twindigital.clustersync.model.dto.ResourceSyncSummary;
 import com.twindigital.clustersync.model.dto.SyncStatusResponse;
+import com.twindigital.clustersync.model.entity.SyncStateEntity;
 import com.twindigital.clustersync.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +33,7 @@ public class SyncHealthTracker {
     private final DeploymentRepository deploymentRepository;
     private final HpaRepository hpaRepository;
     private final PdbRepository pdbRepository;
+    private final SyncStateRepository syncStateRepository;
 
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicReference<Instant> lastEventTime = new AtomicReference<>(Instant.now());
@@ -157,5 +161,48 @@ public class SyncHealthTracker {
                         ? (healthy ? "Informers active and synchronized with cluster" : "Sync lag exceeded threshold (" + properties.getStaleThresholdSeconds() + "s)")
                         : ("Watch connection disconnected: " + (lastErrorMessage.get() != null ? lastErrorMessage.get() : "Connection dropped")))
                 .build();
+    }
+
+    public void recordHeartbeat() {
+        this.lastEventTime.set(Instant.now());
+        this.connected.set(true);
+        metrics.updateLagSeconds(0);
+        metrics.updateHealthy(true);
+    }
+
+    @Transactional
+    public void persistSyncState() {
+        String clusterName = properties.getClusterName();
+        boolean healthy = isHealthy();
+        long lag = calculateLagSeconds();
+        String status = healthy ? "HEALTHY" : "STALE";
+
+        Map<String, Object> resourceCounts = new HashMap<>();
+        resourceCounts.put("nodes", nodeRepository.countByClusterName(clusterName));
+        resourceCounts.put("pods", podRepository.countByClusterName(clusterName));
+        resourceCounts.put("services", serviceRepository.countByClusterName(clusterName));
+        resourceCounts.put("deployments", deploymentRepository.countByClusterName(clusterName));
+        resourceCounts.put("hpas", hpaRepository.countByClusterName(clusterName));
+        resourceCounts.put("pdbs", pdbRepository.countByClusterName(clusterName));
+
+        Instant lastEvent = lastEventTime.get();
+        if (lastEvent == null) {
+            lastEvent = Instant.now();
+        }
+
+        SyncStateEntity state = syncStateRepository.findByClusterName(clusterName)
+                .orElseGet(() -> SyncStateEntity.builder().clusterName(clusterName).build());
+
+        state.setStatus(status);
+        state.setConnected(connected.get());
+        state.setLagSeconds(lag);
+        state.setReconnectCount(reconnectAttempts.get());
+        state.setLastEventAt(lastEvent);
+        state.setResourceCounts(resourceCounts);
+        state.setUpdatedAt(Instant.now());
+
+        syncStateRepository.save(state);
+        log.debug("Persisted sync state to td_sync_state for cluster {}: status={}, connected={}",
+                clusterName, status, connected.get());
     }
 }

@@ -92,6 +92,7 @@ public class KubernetesResourcePersister {
                     existing.setSelector(svc.getSelector());
                     existing.setPorts(svc.getPorts());
                     existing.setLabels(svc.getLabels());
+                    existing.setAnnotations(svc.getAnnotations());
                     existing.setLastSyncedAt(Instant.now());
                     serviceRepository.save(existing);
                     log.debug("Updated service snapshot: {}/{}", svc.getNamespace(), svc.getName());
@@ -119,6 +120,7 @@ public class KubernetesResourcePersister {
                     existing.setUpdatedReplicas(dep.getUpdatedReplicas());
                     existing.setSelector(dep.getSelector());
                     existing.setLabels(dep.getLabels());
+                    existing.setAnnotations(dep.getAnnotations());
                     existing.setLastSyncedAt(Instant.now());
                     deploymentRepository.save(existing);
                     log.debug("Updated deployment snapshot: {}/{}", dep.getNamespace(), dep.getName());
@@ -192,5 +194,18 @@ public class KubernetesResourcePersister {
     public void deletePdb(String clusterName, String namespace, String name) {
         long deleted = pdbRepository.deleteByClusterNameAndNamespaceAndName(clusterName, namespace, name);
         log.info("Deleted PDB from DB snapshot: {}/{} (rows: {})", namespace, name, deleted);
+    }
+
+    @Transactional
+    public void deleteStaleResources(String clusterName, Instant syncStart) {
+        if (syncStart == null) return;
+        long n = nodeRepository.deleteByClusterNameAndLastSyncedAtBefore(clusterName, syncStart);
+        long p = podRepository.deleteByClusterNameAndLastSyncedAtBefore(clusterName, syncStart);
+        long s = serviceRepository.deleteByClusterNameAndLastSyncedAtBefore(clusterName, syncStart);
+        long d = deploymentRepository.deleteByClusterNameAndLastSyncedAtBefore(clusterName, syncStart);
+        long h = hpaRepository.deleteByClusterNameAndLastSyncedAtBefore(clusterName, syncStart);
+        long b = pdbRepository.deleteByClusterNameAndLastSyncedAtBefore(clusterName, syncStart);
+        log.info("Pruned stale records older than sync start {} for cluster {}: nodes={}, pods={}, services={}, deployments={}, hpas={}, pdbs={}",
+                syncStart, clusterName, n, p, s, d, h, b);
     }
 }

@@ -4,7 +4,7 @@ import com.twindigital.topology.entity.*;
 import com.twindigital.topology.model.TopologyDTOs.BlastRadiusResponse;
 import com.twindigital.topology.model.TopologyDTOs.TopologyNode;
 import com.twindigital.topology.model.TopologyDTOs.TopologyResponse;
-import com.twindigital.topology.repository.*;
+import com.twindigital.topology.repository.TopologyRepositories.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,9 +139,10 @@ class TopologyGraphServiceTest {
 
         ClusterSyncStateEntity syncState = ClusterSyncStateEntity.builder()
                 .clusterName(cluster)
-                .syncStatus("HEALTHY")
-                .lastSyncedAt(Instant.now())
-                .stale(false)
+                .status("HEALTHY")
+                .connected(true)
+                .lagSeconds(0)
+                .lastEventAt(Instant.now())
                 .build();
 
         when(nodeRepository.findByClusterName(cluster)).thenReturn(List.of(node));

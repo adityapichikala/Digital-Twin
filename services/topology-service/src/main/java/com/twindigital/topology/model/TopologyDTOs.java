@@ -1,5 +1,6 @@
 package com.twindigital.topology.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -56,6 +57,7 @@ public class TopologyDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class StalenessInfo {
+        @JsonProperty("isStale")
         private boolean isStale;
         private long lagSeconds;
         private String lastSyncedAt;

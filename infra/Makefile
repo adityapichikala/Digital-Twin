@@ -17,11 +17,19 @@
 #   make apply
 # ============================================================
 
-ENV          ?= dev
-INFRA_DIR    := infra/envs/$(ENV)
-BOOTSTRAP_DIR := infra/bootstrap
-TF           := terraform
-AWS_REGION   ?= ap-south-1
+ENV           ?= dev
+REPO_ROOT_RUN := $(wildcard infra/envs)
+ifeq ($(REPO_ROOT_RUN),)
+  INFRA_DIR     := envs/$(ENV)
+  BOOTSTRAP_DIR := bootstrap
+  TF_ROOT       := .
+else
+  INFRA_DIR     := infra/envs/$(ENV)
+  BOOTSTRAP_DIR := infra/bootstrap
+  TF_ROOT       := infra
+endif
+TF            := terraform
+AWS_REGION    ?= ap-south-1
 
 # Colour helpers (works on macOS/Linux; harmless on Windows Git Bash)
 GREEN  := \033[0;32m
@@ -49,7 +57,7 @@ bootstrap: ## Create S3 bucket + DynamoDB table for remote state
 	cd $(BOOTSTRAP_DIR) && \
 	  $(TF) init && \
 	  $(TF) apply -auto-approve
-	@echo "$(GREEN)✔ Bootstrap complete. Update infra/envs/dev/backend.tf with the output bucket name.$(RESET)"
+	@echo "$(GREEN)✔ Bootstrap complete. Update $(INFRA_DIR)/backend.tf with the output bucket name.$(RESET)"
 
 # ── Initialise ────────────────────────────────────────────────
 init: ## Initialise Terraform (downloads providers and configures backend)
@@ -64,7 +72,7 @@ validate: init ## Validate Terraform configuration (no network calls)
 
 # ── Format ────────────────────────────────────────────────────
 fmt: ## Format all .tf files recursively
-	$(TF) fmt -recursive infra/
+	$(TF) fmt -recursive $(TF_ROOT)
 
 # ── Lint (requires tflint) ────────────────────────────────────
 lint: ## Run tflint on all modules and envs
@@ -149,9 +157,9 @@ destroy: ## ⚠️  DESTROY all infrastructure for ENV (requires confirmation)
 
 # ── Clean local Terraform cache ───────────────────────────────
 clean: ## Remove local .terraform directories and plan files
-	find infra -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null; true
-	find infra -name "tfplan"    -type f -delete 2>/dev/null; true
-	find infra -name ".terraform.lock.hcl" -type f -delete 2>/dev/null; true
+	find $(TF_ROOT) -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null; true
+	find $(TF_ROOT) -name "tfplan"    -type f -delete 2>/dev/null; true
+	find $(TF_ROOT) -name ".terraform.lock.hcl" -type f -delete 2>/dev/null; true
 	@echo "$(GREEN)✔ Cleaned local Terraform state$(RESET)"
 
 # ── Cost estimate (requires infracost) ───────────────────────

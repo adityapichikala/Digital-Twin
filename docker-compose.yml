@@ -71,7 +71,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-twindigital}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       KUBECONFIG_BASE64: ${KUBECONFIG_BASE64:-}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
       EKS_CLUSTER_NAME: ${EKS_CLUSTER_NAME:-twindigital-cluster}
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-30}
       SERVER_PORT: 8082
@@ -104,6 +104,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      cluster-sync-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8083/actuator/health || exit 1"]
       interval: 15s
@@ -132,6 +134,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      cluster-sync-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8084/actuator/health || exit 1"]
       interval: 15s
@@ -149,10 +153,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/twindigital
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-twindigital}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
       SERVER_PORT: 8085
     depends_on:
       postgres:
+        condition: service_healthy
+      cluster-sync-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8085/actuator/health || exit 1"]

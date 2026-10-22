@@ -1,0 +1,25 @@
+# ==============================================================================
+# Cost-Optimized SonarQube Helm Values (Chart: sonarqube/sonarqube)
+# Deployment:
+#   helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+#   helm upgrade --install sonarqube sonarqube/sonarqube -n ci --create-namespace -f ci/helm-sonarqube-values.yaml
+# ==============================================================================
+
+jvmOpts: "-Xms512m -Xmx768m"
+searchJvmOpts: "-Xms512m -Xmx512m"
+resources:
+  requests:
+    cpu: "300m"
+    memory: "1024Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1800Mi"
+postgresql:
+  enabled: true
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"

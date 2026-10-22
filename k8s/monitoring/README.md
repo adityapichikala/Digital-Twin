@@ -178,7 +178,7 @@ kubectl port-forward svc/kube-prometheus-stack-alertmanager 9093:9093 -n monitor
 | `PodFrequentRestarts` | Warning | `increase(kube_pod_container_status_restarts_total[5m]) > 3` | > 3 restarts within 5m |
 | `NodeMemoryPressureCondition` | Critical | `kube_node_status_condition{condition="MemoryPressure",status="true"} == 1` | Active condition for > 2m |
 | `NodeMemoryUsageCritical` | Critical | `(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85` | Memory usage > 85% for > 2m |
-| `GatewayHighErrorRate` | Critical | `(sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100 > 5` | 5xx error rate > 5% for > 2m |
+| `GatewayHighErrorRate` | Critical | `(sum(rate(gateway_http_requests_total{status_code=~"5.."}[5m])) / sum(rate(gateway_http_requests_total[5m]))) * 100 > 5` | 5xx error rate > 5% for > 2m |
 | `MicroserviceHighErrorRate` | Critical | `sum by (service) (rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / ... > 5` | 5xx error rate > 5% for > 2m |
 | `ServiceInstanceDown` | Critical | `up{job=~"twindigital.*"} == 0` | Scrape target unreachable for > 1m |
 | `SimulationLatencyP99High` | Warning | `histogram_quantile(0.99, ...) > 2` | Simulation P99 response time > 2s |

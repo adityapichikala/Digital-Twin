@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: twindigital/gateway
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/gateway
+    newTag: v1.0.0
+  - name: twindigital/auth-service
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/auth-service
+    newTag: v1.0.0
+  - name: twindigital/cluster-sync-service
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/cluster-sync-service
+    newTag: v1.0.0
+  - name: twindigital/topology-service
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/topology-service
+    newTag: v1.0.0
+  - name: twindigital/simulation-service
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/simulation-service
+    newTag: v1.0.0
+  - name: twindigital/cost-risk-service
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/cost-risk-service
+    newTag: v1.0.0
+  - name: twindigital/frontend
+    newName: 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/frontend
+    newTag: v1.0.0

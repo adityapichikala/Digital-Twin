@@ -15,7 +15,7 @@ spec:
       - twindigital
   selector:
     matchLabels:
-      app.kubernetes.io/name: twindigital-gateway
+      app.kubernetes.io/name: gateway
   endpoints:
     - port: http
       path: /metrics
@@ -23,25 +23,5 @@ spec:
       scrapeTimeout: 10s
       metricRelabelings:
         - sourceLabels: [__name__]
-          regex: "(http_requests_total|http_request_duration_seconds.*|nodejs_.*|process_.*)"
+          regex: "(gateway_http_requests_total|gateway_http_request_duration_seconds.*|gateway_http_errors_total|nodejs_.*|process_.*)"
           action: keep
----
-# Companion Kubernetes Service for the Gateway (Port 3000)
-apiVersion: v1
-kind: Service
-metadata:
-  name: gateway
-  namespace: twindigital
-  labels:
-    app.kubernetes.io/name: twindigital-gateway
-    app.kubernetes.io/component: api-gateway
-    app.kubernetes.io/part-of: twindigital
-spec:
-  type: ClusterIP
-  ports:
-    - name: http
-      port: 3000
-      targetPort: 3000
-      protocol: TCP
-  selector:
-    app.kubernetes.io/name: twindigital-gateway

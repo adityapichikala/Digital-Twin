@@ -67,5 +67,4 @@ variable "endpoint_public_access" {
 variable "public_access_cidrs" {
   description = "CIDRs allowed to reach the public EKS API endpoint. Restrict to your office/VPN IP in production."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
 }

@@ -1,0 +1,41 @@
+# ============================================================
+# terraform.tfvars.example — Example configuration template
+#
+# Copy this file to infra/envs/dev/terraform.tfvars and customize:
+#   cp terraform.tfvars.example envs/dev/terraform.tfvars
+# ============================================================
+
+aws_region   = "ap-south-1"
+environment  = "dev"
+cluster_name = "twindigital-dev"
+owner_tag    = "platform-team"
+
+# ── Network ───────────────────────────────────────────────────
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.0.0/24", "10.0.1.0/24"]
+private_subnet_cidrs = ["10.0.10.0/23", "10.0.12.0/23"]
+
+# ── EKS ───────────────────────────────────────────────────────
+kubernetes_version     = "1.29"
+node_instance_type     = "t3.medium"
+spot_enabled           = true # ~70% cost saving for dev
+node_desired_count     = 2
+node_min_count         = 2
+node_max_count         = 4
+node_disk_size_gb      = 20
+endpoint_public_access = true
+
+# ⚠️  Specify your static office or VPN IP (public_access_cidrs has no 0.0.0.0/0 default)
+public_access_cidrs = ["203.0.113.10/32"]
+
+# ── RDS ───────────────────────────────────────────────────────
+db_name                 = "twindigital"
+db_username             = "twindigital"
+db_instance_class       = "db.t3.micro"
+rds_multi_az            = false
+rds_deletion_protection = false
+rds_skip_final_snapshot = true
+
+# ── Redis (ElastiCache) ───────────────────────────────────────
+redis_node_type          = "cache.t4g.micro"
+redis_num_cache_clusters = 1

@@ -53,7 +53,7 @@ spec:
             - name: AWS_REGION
               value: "ap-south-1"
             - name: SERVICES_PROMETHEUS_URL
-              value: "http://prometheus-k8s.monitoring.svc.cluster.local:9090"
+              value: "http://kube-prometheus-stack-prometheus.monitoring.svc:9090"
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://postgres.twindigital.svc.cluster.local:5432/twindigital"
             - name: SPRING_DATASOURCE_USERNAME

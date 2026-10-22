@@ -39,6 +39,7 @@ interface SimulationResult {
   predictedOutcome: string;
   findings: Finding[];
   capacitySummary?: CapacitySummary;
+  costDelta?: number | null;
   executedAt: string;
 }
 
@@ -106,6 +107,7 @@ export default function SimulationPage() {
 
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<SimulationResult | null>(null);
+  const [isDemoData, setIsDemoData] = useState<boolean>(false);
 
   function loadPreset(p: typeof PRESET_SCENARIOS[0]) {
     setKind(p.kind);
@@ -142,8 +144,10 @@ export default function SimulationPage() {
         res = await api.post<SimulationResult>('/api/simulations', payload);
       }
       setResult(res.data);
+      setIsDemoData(false);
     } catch (err: any) {
       console.warn('Simulation API offline; computing client-side fallback demonstration:', err);
+      setIsDemoData(true);
       // Realistic client-side fallback if server offline during preview
       const isCpuExhaustion = cpuRequest.includes('1000m') || Number(replicas) >= 6;
       const isLimitInvalid = (cpuLimit && cpuRequest && parseInt(cpuLimit) < parseInt(cpuRequest));
@@ -152,6 +156,12 @@ export default function SimulationPage() {
       let riskLevel: RiskLevel = 'LOW';
       let score = 10;
       let outcome = 'Change is safe to apply: all pods schedulable with sufficient cluster capacity remaining.';
+      let fallbackCostDelta: number | null = null;
+      if (kind === 'SCALE') {
+        fallbackCostDelta = (Number(replicas) - 2) * 18.22;
+      } else if (kind === 'RESOURCE_CHANGE') {
+        fallbackCostDelta = 12.50;
+      }
       const findings: Finding[] = [];
 
       if (isLimitInvalid) {
@@ -192,6 +202,7 @@ export default function SimulationPage() {
         score,
         predictedOutcome: outcome,
         findings,
+        costDelta: fallbackCostDelta,
         executedAt: new Date().toISOString(),
       });
     } finally {
@@ -348,6 +359,39 @@ export default function SimulationPage() {
 
         {/* Results Card */}
         <div>
+          {isDemoData && (
+            <div
+              style={{
+                background: 'rgba(234, 179, 8, 0.15)',
+                border: '1px solid rgba(234, 179, 8, 0.4)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.65rem 0.85rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                color: '#eab308',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+              }}
+            >
+              <span
+                style={{
+                  background: '#eab308',
+                  color: '#000',
+                  padding: '0.1rem 0.35rem',
+                  borderRadius: '3px',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.05em',
+                }}
+              >
+                DEMO DATA
+              </span>
+              <span>Simulation backend is offline. Displaying client-side fallback demonstration.</span>
+            </div>
+          )}
+
           {result ? (
             <div className="card animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {/* Header result */}
@@ -397,6 +441,45 @@ export default function SimulationPage() {
                   {result.predictedOutcome}
                 </span>
               </div>
+
+              {/* Estimated Monthly Cost Delta */}
+              {result.costDelta !== undefined && result.costDelta !== null && (
+                <div
+                  style={{
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.85rem 1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Estimated Monthly Cost Impact
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '1.2rem',
+                        fontWeight: 700,
+                        marginTop: '0.2rem',
+                        color: result.costDelta > 0 ? '#f59e0b' : result.costDelta < 0 ? '#10b981' : 'var(--color-text-primary)',
+                      }}
+                    >
+                      {result.costDelta > 0
+                        ? `+$${result.costDelta.toFixed(2)} / month`
+                        : result.costDelta < 0
+                        ? `-$${Math.abs(result.costDelta).toFixed(2)} / month`
+                        : '$0.00 / month (Neutral)'}
+                    </div>
+                  </div>
+                  <span className={`badge ${result.costDelta > 0 ? 'badge-yellow' : 'badge-green'}`}>
+                    {result.costDelta > 0 ? 'Cost Increase' : result.costDelta < 0 ? 'Cost Reduction' : 'Neutral'}
+                  </span>
+                </div>
+              )}
+
 
               {/* Findings */}
               <div>

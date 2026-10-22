@@ -37,14 +37,14 @@ public class KubernetesResourceMapper {
             if (node.getStatus().getAllocatable() != null) {
                 Quantity cpu = node.getStatus().getAllocatable().get("cpu");
                 Quantity mem = node.getStatus().getAllocatable().get("memory");
-                allocatableCpu = cpu != null ? cpu.toSuffixedString() : null;
-                allocatableMem = mem != null ? mem.toSuffixedString() : null;
+                allocatableCpu = cpu != null ? formatCpu(cpu) : null;
+                allocatableMem = mem != null ? formatMemory(mem) : null;
             }
             if (node.getStatus().getCapacity() != null) {
                 Quantity cpu = node.getStatus().getCapacity().get("cpu");
                 Quantity mem = node.getStatus().getCapacity().get("memory");
-                capacityCpu = cpu != null ? cpu.toSuffixedString() : null;
-                capacityMem = mem != null ? mem.toSuffixedString() : null;
+                capacityCpu = cpu != null ? formatCpu(cpu) : null;
+                capacityMem = mem != null ? formatMemory(mem) : null;
             }
             if (node.getStatus().getConditions() != null) {
                 for (V1NodeCondition cond : node.getStatus().getConditions()) {
@@ -92,6 +92,18 @@ public class KubernetesResourceMapper {
             V1OwnerReference ref = pod.getMetadata().getOwnerReferences().get(0);
             ownerKind = ref.getKind();
             ownerName = ref.getName();
+            if ("ReplicaSet".equalsIgnoreCase(ownerKind) && ownerName != null) {
+                String hash = labels.get("pod-template-hash");
+                if (hash != null && ownerName.endsWith("-" + hash)) {
+                    ownerName = ownerName.substring(0, ownerName.length() - hash.length() - 1);
+                } else {
+                    int lastDash = ownerName.lastIndexOf('-');
+                    if (lastDash > 0) {
+                        ownerName = ownerName.substring(0, lastDash);
+                    }
+                }
+                ownerKind = "Deployment";
+            }
         }
 
         Map<String, String> labels = pod.getMetadata().getLabels() != null
@@ -139,10 +151,10 @@ public class KubernetesResourceMapper {
                     }
                 }
             }
-            if (hasCpuReq) cpuRequests = totalCpuReq.stripTrailingZeros().toPlainString() + " cores";
-            if (hasMemReq) memoryRequests = formatBytes(totalMemReqBytes);
-            if (hasCpuLim) cpuLimits = totalCpuLim.stripTrailingZeros().toPlainString() + " cores";
-            if (hasMemLim) memoryLimits = formatBytes(totalMemLimBytes);
+            if (hasCpuReq) cpuRequests = formatCpu(totalCpuReq);
+            if (hasMemReq) memoryRequests = formatMemory(totalMemReqBytes);
+            if (hasCpuLim) cpuLimits = formatCpu(totalCpuLim);
+            if (hasMemLim) memoryLimits = formatMemory(totalMemLimBytes);
         }
 
         String phase = "Unknown";
@@ -191,6 +203,9 @@ public class KubernetesResourceMapper {
         Map<String, String> labels = service.getMetadata().getLabels() != null
                 ? new HashMap<>(service.getMetadata().getLabels())
                 : new HashMap<>();
+        Map<String, String> annotations = service.getMetadata().getAnnotations() != null
+                ? new HashMap<>(service.getMetadata().getAnnotations())
+                : new HashMap<>();
 
         String serviceType = "ClusterIP";
         String clusterIp = null;
@@ -231,6 +246,7 @@ public class KubernetesResourceMapper {
                 .selector(selector)
                 .ports(ports)
                 .labels(labels)
+                .annotations(annotations)
                 .lastSyncedAt(Instant.now())
                 .build();
     }
@@ -247,6 +263,9 @@ public class KubernetesResourceMapper {
         String name = deployment.getMetadata().getName();
         Map<String, String> labels = deployment.getMetadata().getLabels() != null
                 ? new HashMap<>(deployment.getMetadata().getLabels())
+                : new HashMap<>();
+        Map<String, String> annotations = deployment.getMetadata().getAnnotations() != null
+                ? new HashMap<>(deployment.getMetadata().getAnnotations())
                 : new HashMap<>();
 
         int replicas = 0;
@@ -286,6 +305,7 @@ public class KubernetesResourceMapper {
                 .updatedReplicas(updatedReplicas)
                 .selector(selector)
                 .labels(labels)
+                .annotations(annotations)
                 .lastSyncedAt(Instant.now())
                 .build();
     }
@@ -422,19 +442,44 @@ public class KubernetesResourceMapper {
                 .build();
     }
 
-    private String formatBytes(BigDecimal bytes) {
-        if (bytes == null || bytes.compareTo(BigDecimal.ZERO) == 0) {
-            return "0B";
+    public String formatCpu(Quantity cpu) {
+        if (cpu == null || cpu.getNumber() == null) {
+            return null;
+        }
+        return formatCpu(cpu.getNumber());
+    }
+
+    public String formatCpu(BigDecimal cores) {
+        if (cores == null) {
+            return null;
+        }
+        long millis = cores.multiply(BigDecimal.valueOf(1000))
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .longValue();
+        return millis + "m";
+    }
+
+    public String formatMemory(Quantity mem) {
+        if (mem == null || mem.getNumber() == null) {
+            return null;
+        }
+        return formatMemory(mem.getNumber());
+    }
+
+    public String formatMemory(BigDecimal bytes) {
+        if (bytes == null || bytes.compareTo(BigDecimal.ZERO) <= 0) {
+            return "0Mi";
         }
         long b = bytes.longValue();
-        long mebibytes = b / (1024 * 1024);
-        if (mebibytes > 0) {
-            return mebibytes + "Mi";
+        if (b % (1024L * 1024L) == 0) {
+            return (b / (1024L * 1024L)) + "Mi";
         }
-        long kibibytes = b / 1024;
-        if (kibibytes > 0) {
-            return kibibytes + "Ki";
+        if (b % 1024L == 0) {
+            return (b / 1024L) + "Ki";
         }
-        return b + "B";
+        if (b >= 1024L * 1024L) {
+            return (b / (1024L * 1024L)) + "Mi";
+        }
+        return Math.max(1, b / 1024L) + "Ki";
     }
 }

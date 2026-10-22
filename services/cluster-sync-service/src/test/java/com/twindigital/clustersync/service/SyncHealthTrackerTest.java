@@ -28,6 +28,7 @@ class SyncHealthTrackerTest {
     @Mock private DeploymentRepository deploymentRepository;
     @Mock private HpaRepository hpaRepository;
     @Mock private PdbRepository pdbRepository;
+    @Mock private SyncStateRepository syncStateRepository;
 
     @BeforeEach
     void setUp() {
@@ -43,7 +44,8 @@ class SyncHealthTrackerTest {
         tracker = new SyncHealthTracker(
                 properties, metrics,
                 nodeRepository, podRepository, serviceRepository,
-                deploymentRepository, hpaRepository, pdbRepository
+                deploymentRepository, hpaRepository, pdbRepository,
+                syncStateRepository
         );
     }
 
@@ -86,6 +88,41 @@ class SyncHealthTrackerTest {
         assertEquals("STALE", response.getStatus());
         assertFalse(response.isConnected());
         assertTrue(response.getMessage().contains("Watch connection disconnected"));
+    }
+
+    @Test
+    @DisplayName("Should record heartbeat and maintain healthy status")
+    void shouldRecordHeartbeat() {
+        tracker.markDisconnected("Temporary failure");
+        assertFalse(tracker.isHealthy());
+
+        tracker.recordHeartbeat();
+        assertTrue(tracker.isHealthy());
+        assertEquals(0, tracker.calculateLagSeconds());
+    }
+
+    @Test
+    @DisplayName("Should persist status to td_sync_state")
+    void shouldPersistStatusToSyncState() {
+        tracker.markConnected();
+        when(nodeRepository.countByClusterName("test-eks-cluster")).thenReturn(5L);
+        when(podRepository.countByClusterName("test-eks-cluster")).thenReturn(20L);
+        when(serviceRepository.countByClusterName("test-eks-cluster")).thenReturn(4L);
+        when(deploymentRepository.countByClusterName("test-eks-cluster")).thenReturn(3L);
+        when(hpaRepository.countByClusterName("test-eks-cluster")).thenReturn(2L);
+        when(pdbRepository.countByClusterName("test-eks-cluster")).thenReturn(1L);
+        when(syncStateRepository.findByClusterName("test-eks-cluster")).thenReturn(java.util.Optional.empty());
+
+        tracker.persistSyncState();
+
+        verify(syncStateRepository).save(argThat(entity ->
+                "test-eks-cluster".equals(entity.getClusterName()) &&
+                "HEALTHY".equals(entity.getStatus()) &&
+                entity.isConnected() &&
+                entity.getResourceCounts() != null &&
+                Long.valueOf(5L).equals(entity.getResourceCounts().get("nodes")) &&
+                Long.valueOf(20L).equals(entity.getResourceCounts().get("pods"))
+        ));
     }
 
     @Test

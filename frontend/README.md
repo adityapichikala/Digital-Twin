@@ -1,16 +1,24 @@
-# React + Vite
+# TwinDigital Frontend SPA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The TwinDigital user interface is a high-performance Single Page Application (SPA) built with React 18, Vite, and TypeScript. It provides interactive digital twin visualization, topology graphs, what-if simulations, and AWS/Kubernetes cost analytics.
 
-Currently, two official plugins are available:
+## Core Capabilities
+- **Topology Canvas**: Interactive directed acyclic graph (DAG) rendered with `@xyflow/react` and Dagre hierarchical layout, visualizing Kubernetes Nodes, Pods, Deployments, and Services.
+- **Blast Radius Analyzer**: Inspect upstream callers and downstream dependencies impacted by modifying or deleting workloads.
+- **What-If Simulation Workbench**: Test proposed Kubernetes change sets (resource resizing, pod scaling, node drain) against real cluster capacity constraints before touching production.
+- **Cluster Cost & Right-Sizing Dashboard**: 7-day p95 PromQL actual usage analysis vs. requests, AWS Cost Explorer billing breakdown, and right-sizing recommendations.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Development & Build Commands
+```bash
+# Start local development server (proxies /api to gateway:8080 or :3000)
+npm run dev
 
-## React Compiler
+# Run TypeScript type check
+npm run typecheck
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+# Run linter
+npm run lint
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+# Build production bundle
+npm run build
+```

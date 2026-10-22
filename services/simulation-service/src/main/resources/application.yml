@@ -14,6 +14,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    table: flyway_schema_history_simulation
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}

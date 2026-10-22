@@ -57,9 +57,9 @@ spec:
         - alert: GatewayHighErrorRate
           expr: |
             (
-              sum(rate(http_requests_total{status=~"5.."}[5m]))
+              sum(rate(gateway_http_requests_total{status_code=~"5.."}[5m]))
               /
-              sum(rate(http_requests_total[5m]))
+              sum(rate(gateway_http_requests_total[5m]))
             ) * 100 > 5
           for: 2m
           labels:

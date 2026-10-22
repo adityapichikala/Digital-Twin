@@ -1,0 +1,30 @@
+# ==============================================================================
+# Cost-Optimized Jenkins Helm Values (Chart: jenkins/jenkins)
+# Deployment:
+#   helm repo add jenkins https://charts.jenkins.io
+#   helm upgrade --install jenkins jenkins/jenkins -n ci --create-namespace -f ci/helm-jenkins-values.yaml
+# ==============================================================================
+
+controller:
+  componentName: "jenkins-controller"
+  image: "jenkins/jenkins"
+  tag: "lts-jdk17"
+  javaOpts: "-Xms512m -Xmx1024m"
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1536Mi"
+  installPlugins:
+    - "git:5.2.1"
+    - "workflow-aggregator:596.v8c21c963d92d"
+    - "sonar:2.16.1"
+    - "jacoco:3.3.6"
+    - "docker-workflow:572.v950f58993843"
+    - "kubernetes:4240.v9a_d87d461533"
+    - "kubernetes-cli:1.12.1"
+    - "htmlpublisher:1.32"
+  serviceType: ClusterIP
+  servicePort: 8080

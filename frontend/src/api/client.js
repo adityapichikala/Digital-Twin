@@ -14,12 +14,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 globally, but do not redirect on auth endpoint failures (e.g. invalid credentials)
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const isAuthCall = err.config?.url && err.config.url.includes('/auth');
+    if (err.response?.status === 401 && !isAuthCall) {
       localStorage.removeItem('td_token');
+      localStorage.removeItem('td_user');
       window.location.href = '/login';
     }
     return Promise.reject(err);

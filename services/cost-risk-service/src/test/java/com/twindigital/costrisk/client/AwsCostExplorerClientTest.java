@@ -80,4 +80,26 @@ class AwsCostExplorerClientTest {
         // Should return empty optional rather than throwing uncaught exception
         assertThat(result).isEmpty();
     }
+
+    @Test
+    @DisplayName("Should filter Cost Explorer queries by cluster tag to scope to cluster resources rather than account-wide")
+    void shouldFilterQueriesByClusterTag() {
+        MetricValue metricValue = MetricValue.builder().amount("80.00").unit("USD").build();
+        Group group = Group.builder().keys("Amazon Elastic Compute Cloud - Compute").metrics(Map.of("UnblendedCost", metricValue)).build();
+        ResultByTime resultByTime = ResultByTime.builder().groups(List.of(group)).build();
+        GetCostAndUsageResponse response = (GetCostAndUsageResponse) GetCostAndUsageResponse.builder()
+                .resultsByTime(List.of(resultByTime))
+                .build();
+
+        org.mockito.ArgumentCaptor<GetCostAndUsageRequest> captor = org.mockito.ArgumentCaptor.forClass(GetCostAndUsageRequest.class);
+        when(costExplorerClient.getCostAndUsage(captor.capture())).thenReturn(response);
+
+        awsCostExplorerClient.getMonthlyCost("test-eks-cluster");
+
+        GetCostAndUsageRequest captured = captor.getValue();
+        assertThat(captured.filter()).isNotNull();
+        assertThat(captured.filter().tags()).isNotNull();
+        assertThat(captured.filter().tags().key()).isEqualTo("kubernetes.io/cluster/test-eks-cluster");
+        assertThat(captured.filter().tags().values()).contains("owned", "shared");
+    }
 }

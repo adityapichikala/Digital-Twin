@@ -48,11 +48,12 @@ describe('Gateway - Health & Prometheus Metrics', () => {
     expect(res.body.requestId).toBe(customId);
   });
 
-  it('GET /metrics returns Prometheus metric declarations', async () => {
+  it('GET /metrics returns Prometheus metric declarations with aligned naming and labels', async () => {
     const res = await request(app).get('/metrics');
     expect(res.statusCode).toBe(200);
     expect(res.text).toContain('gateway_http_requests_total');
     expect(res.text).toContain('gateway_http_request_duration_seconds');
+    expect(res.text).toContain('gateway_http_errors_total');
   });
 });
 
@@ -174,3 +175,56 @@ describe('Gateway - Standard Error Handling & 404', () => {
     expect(res.body.timestamp).toBeDefined();
   });
 });
+
+describe('Gateway - ResilientStore Rate Limiter Fallback', () => {
+  const { ResilientStore } = require('../middleware/rateLimiter');
+  const { rateLimit } = require('express-rate-limit');
+  const express = require('express');
+
+  it('falls back to MemoryStore when primary Redis store throws errors', async () => {
+    const brokenPrimaryStore = {
+      init: jest.fn(),
+      increment: jest.fn().mockRejectedValue(new Error('Redis connection refused')),
+      decrement: jest.fn().mockRejectedValue(new Error('Redis connection refused')),
+      resetKey: jest.fn().mockRejectedValue(new Error('Redis connection refused')),
+    };
+
+    const resilientStore = new ResilientStore(brokenPrimaryStore);
+    resilientStore.init({ windowMs: 60000 });
+
+    // increment should catch the Redis error and use fallback MemoryStore
+    const res1 = await resilientStore.increment('test-client-ip');
+    expect(res1.totalHits).toBe(1);
+
+    const res2 = await resilientStore.increment('test-client-ip');
+    expect(res2.totalHits).toBe(2);
+
+    expect(brokenPrimaryStore.increment).toHaveBeenCalledTimes(2);
+  });
+
+  it('enforces rate limits in-memory and passes on store error when primary store fails', async () => {
+    const failingStore = {
+      init: jest.fn(),
+      increment: jest.fn().mockRejectedValue(new Error('Redis ECONNRESET')),
+    };
+
+    const testApp = express();
+    testApp.use(rateLimit({
+      windowMs: 60000,
+      max: 2,
+      store: new ResilientStore(failingStore),
+      passOnStoreError: true,
+    }));
+    testApp.get('/test-limit', (req, res) => res.json({ status: 'ok' }));
+
+    const r1 = await request(testApp).get('/test-limit');
+    expect(r1.status).toBe(200);
+
+    const r2 = await request(testApp).get('/test-limit');
+    expect(r2.status).toBe(200);
+
+    const r3 = await request(testApp).get('/test-limit');
+    expect(r3.status).toBe(429);
+  });
+});
+

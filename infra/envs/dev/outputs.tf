@@ -76,3 +76,30 @@ output "retrieve_db_secret_command" {
   description = "Command to retrieve the DB secret"
   value       = "aws secretsmanager get-secret-value --secret-id ${module.rds.secret_name} --region ${var.aws_region} --query SecretString --output text | jq ."
 }
+
+output "cluster_security_group_id" {
+  description = "EKS cluster primary security group ID"
+  value       = module.eks.cluster_security_group_id
+}
+
+# ── Redis ─────────────────────────────────────────────────────
+output "redis_endpoint" {
+  description = "ElastiCache Redis primary endpoint hostname"
+  value       = module.redis.redis_endpoint
+}
+
+output "redis_port" {
+  description = "ElastiCache Redis port"
+  value       = module.redis.redis_port
+}
+
+output "redis_secret_arn" {
+  description = "Secrets Manager ARN for Redis connection info"
+  value       = module.redis.secret_arn
+}
+
+output "redis_secret_name" {
+  description = "Secrets Manager secret name for Redis"
+  value       = module.redis.secret_name
+}
+

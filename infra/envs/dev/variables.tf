@@ -85,8 +85,7 @@ variable "endpoint_public_access" {
 variable "public_access_cidrs" {
   description = "CIDRs allowed to reach the EKS public API endpoint"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
-  # ⚠️  Replace with your static office/VPN IP for security
+  # ⚠️  Specify your static office/VPN IP for security (no 0.0.0.0/0 default)
 }
 
 # ── RDS ───────────────────────────────────────────────────────
@@ -118,4 +117,17 @@ variable "rds_deletion_protection" {
 variable "rds_skip_final_snapshot" {
   type    = bool
   default = true
+}
+
+# ── Redis (ElastiCache) ───────────────────────────────────────
+variable "redis_node_type" {
+  description = "ElastiCache Redis node type"
+  type        = string
+  default     = "cache.t4g.micro"
+}
+
+variable "redis_num_cache_clusters" {
+  description = "Number of cache clusters for Redis"
+  type        = number
+  default     = 1
 }

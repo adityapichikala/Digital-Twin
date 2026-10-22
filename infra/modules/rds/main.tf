@@ -57,6 +57,7 @@ resource "aws_secretsmanager_secret_version" "db" {
     username = var.db_username
     password = random_password.db.result
     dbname   = var.db_name
+    database = var.db_name
     host     = aws_db_instance.main.address
     port     = tostring(aws_db_instance.main.port)
     # Full JDBC URL for Spring Boot services
@@ -116,8 +117,9 @@ resource "aws_db_parameter_group" "main" {
     value = "1000" # Log queries slower than 1s
   }
   parameter {
-    name  = "shared_preload_libraries"
-    value = "pg_stat_statements"
+    name         = "shared_preload_libraries"
+    value        = "pg_stat_statements"
+    apply_method = "pending-reboot"
   }
 
   tags = { Name = "${var.cluster_name}-pg15" }

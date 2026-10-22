@@ -1,6 +1,7 @@
 package com.twindigital.clustersync.model.mapper;
 
 import com.twindigital.clustersync.model.entity.*;
+import com.twindigital.clustersync.util.KubeQuantityParser;
 import io.kubernetes.client.custom.IntOrString;
 import io.kubernetes.client.custom.Quantity;
 import io.kubernetes.client.openapi.models.*;
@@ -46,7 +47,12 @@ class KubernetesResourceMapperTest {
         assertEquals("ip-10-0-1-50.ec2.internal", entity.getName());
         assertEquals("1930m", entity.getAllocatableCpu());
         assertEquals("3800000Ki", entity.getAllocatableMemory());
-        assertEquals("2", entity.getCapacityCpu());
+        assertEquals("2000m", entity.getCapacityCpu());
+        assertEquals("4096Mi", entity.getCapacityMemory());
+        assertEquals(1930L, KubeQuantityParser.parseCpuMillis(entity.getAllocatableCpu()));
+        assertEquals(2000L, KubeQuantityParser.parseCpuMillis(entity.getCapacityCpu()));
+        assertEquals(3800000L * 1024L, KubeQuantityParser.parseMemoryBytes(entity.getAllocatableMemory()));
+        assertEquals(4096L * 1024L * 1024L, KubeQuantityParser.parseMemoryBytes(entity.getCapacityMemory()));
         assertTrue(entity.isReady());
         assertEquals("Ready", entity.getStatus());
         assertEquals("t3.medium", entity.getLabels().get("node.kubernetes.io/instance-type"));
@@ -85,12 +91,18 @@ class KubernetesResourceMapperTest {
         assertEquals("twindigital", entity.getNamespace());
         assertEquals("simulation-service-674b9-abcde", entity.getName());
         assertEquals("ip-10-0-1-50.ec2.internal", entity.getNodeName());
-        assertEquals("ReplicaSet", entity.getOwnerKind());
-        assertEquals("simulation-service-674b9", entity.getOwnerName());
+        assertEquals("Deployment", entity.getOwnerKind());
+        assertEquals("simulation-service", entity.getOwnerName());
         assertEquals("Running", entity.getPhase());
         assertEquals(2, entity.getRestarts());
-        assertNotNull(entity.getCpuRequests());
-        assertNotNull(entity.getMemoryRequests());
+        assertEquals("250m", entity.getCpuRequests());
+        assertEquals("512Mi", entity.getMemoryRequests());
+        assertEquals("500m", entity.getCpuLimits());
+        assertEquals("1024Mi", entity.getMemoryLimits());
+        assertEquals(250L, KubeQuantityParser.parseCpuMillis(entity.getCpuRequests()));
+        assertEquals(536870912L, KubeQuantityParser.parseMemoryBytes(entity.getMemoryRequests()));
+        assertEquals(500L, KubeQuantityParser.parseCpuMillis(entity.getCpuLimits()));
+        assertEquals(1073741824L, KubeQuantityParser.parseMemoryBytes(entity.getMemoryLimits()));
         assertEquals("simulation-service", entity.getLabels().get("app.kubernetes.io/name"));
     }
 
@@ -129,7 +141,8 @@ class KubernetesResourceMapperTest {
                 .metadata(new V1ObjectMeta()
                         .name("auth-service")
                         .namespace("twindigital")
-                        .labels(Map.of("app", "auth-service")))
+                        .labels(Map.of("app", "auth-service"))
+                        .annotations(Map.of("twindigital.io/depends-on", "postgres,redis")))
                 .spec(new V1DeploymentSpec()
                         .replicas(3)
                         .selector(new V1LabelSelector().matchLabels(Map.of("app", "auth-service"))))
@@ -146,6 +159,8 @@ class KubernetesResourceMapperTest {
         assertEquals(3, entity.getReadyReplicas());
         assertEquals(3, entity.getAvailableReplicas());
         assertEquals("auth-service", entity.getSelector().get("app"));
+        assertNotNull(entity.getAnnotations());
+        assertEquals("postgres,redis", entity.getAnnotations().get("twindigital.io/depends-on"));
     }
 
     @Test
@@ -215,6 +230,52 @@ class KubernetesResourceMapperTest {
         assertEquals(2, entity.getCurrentHealthy());
         assertEquals(1, entity.getDisruptionsAllowed());
         assertEquals("gateway", entity.getSelector().get("app"));
+    }
+
+    @Test
+    @DisplayName("Should resolve pod ownerName from ReplicaSet using pod-template-hash label")
+    void shouldResolvePodOwnerNameWithHashLabel() {
+        V1Pod pod = new V1Pod()
+                .metadata(new V1ObjectMeta()
+                        .name("billing-service-5c69784795-xy123")
+                        .namespace("twindigital")
+                        .ownerReferences(List.of(new V1OwnerReference().kind("ReplicaSet").name("billing-service-5c69784795")))
+                        .labels(Map.of("app", "billing-service", "pod-template-hash", "5c69784795")));
+
+        PodEntity entity = mapper.toPodEntity(clusterName, pod);
+        assertNotNull(entity);
+        assertEquals("Deployment", entity.getOwnerKind());
+        assertEquals("billing-service", entity.getOwnerName());
+    }
+
+    @Test
+    @DisplayName("Should round-trip CPU and Memory quantities through KubeQuantityParser")
+    void shouldRoundTripQuantitiesThroughParser() {
+        // CPU millicores round-trip
+        String cpu1 = mapper.formatCpu(new BigDecimal("0.250"));
+        assertEquals("250m", cpu1);
+        assertEquals(250L, KubeQuantityParser.parseCpuMillis(cpu1));
+
+        String cpu2 = mapper.formatCpu(new BigDecimal("2"));
+        assertEquals("2000m", cpu2);
+        assertEquals(2000L, KubeQuantityParser.parseCpuMillis(cpu2));
+
+        String cpu3 = mapper.formatCpu(new Quantity("100m"));
+        assertEquals("100m", cpu3);
+        assertEquals(100L, KubeQuantityParser.parseCpuMillis(cpu3));
+
+        // Memory Mi/Ki round-trip
+        String mem1 = mapper.formatMemory(new BigDecimal(536870912L)); // 512Mi
+        assertEquals("512Mi", mem1);
+        assertEquals(536870912L, KubeQuantityParser.parseMemoryBytes(mem1));
+
+        String mem2 = mapper.formatMemory(new BigDecimal(65536L)); // 64Ki
+        assertEquals("64Ki", mem2);
+        assertEquals(65536L, KubeQuantityParser.parseMemoryBytes(mem2));
+
+        String mem3 = mapper.formatMemory(new Quantity("1024Mi"));
+        assertEquals("1024Mi", mem3);
+        assertEquals(1073741824L, KubeQuantityParser.parseMemoryBytes(mem3));
     }
 
     @Test

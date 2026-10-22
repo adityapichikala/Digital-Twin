@@ -12,7 +12,7 @@ This script provides an exact, second-by-second walkthrough for demonstrating th
 | Time Segment | Module Demonstrated | Screen / Route | Core Message |
 | :---: | :--- | :--- | :--- |
 | **0:00 – 0:45** | **Real-Time Topology & Blast Radius** | `http://localhost:5173/topology` | Sub-second Kubernetes sync & visual dependency graph. |
-| **0:45 – 1:30** | **What-If Simulation Engine** | `http://localhost:5173/simulations` | Predict cluster failure *before* committing change sets. |
+| **0:45 – 1:30** | **What-If Simulation Engine** | `http://localhost:5173/simulate` | Predict cluster failure & cost delta *before* committing change sets. |
 | **1:30 – 2:15** | **Cost & PromQL Right-Sizing** | `http://localhost:5173/cost-risk` | 7-day p95 PromQL analysis & AWS Cost Explorer savings. |
 | **2:15 – 3:00** | **Security Hardening & Auto-Rollback** | Terminal (`kubectl`) | Read-only rootfs, network policy defense & auto-rollback. |
 
@@ -26,26 +26,26 @@ This script provides an exact, second-by-second walkthrough for demonstrating th
 
 ### Action:
 1. Click on the **`auth-service`** node. The right drawer slides open showing configured CPU requests (`150m`), memory limits (`512Mi`), and restart counts (`0`).
-2. Point out the highlighted **Blast Radius** showing all upstream services (`gateway`, `simulation-service`, `topology-service`) highlighted in amber.
+2. Point out the highlighted **Blast Radius** showing all upstream services (`gateway`, `simulation-service`, `topology-service`) highlighted in amber computed via an in-memory BFS traversal.
 3. Switch to terminal and trigger a live pod deletion:
    ```bash
    kubectl delete pod -l app.kubernetes.io/name=billing-service -n twindigital
    ```
-4. Immediately look back at the UI: watch the topology canvas reflect the pod termination and replacement in **under 500 milliseconds**.
+4. Immediately look back at the UI: watch the topology canvas reflect the pod termination and replacement on the **5-second REST poll** with zero manual refresh.
 
 ### Presenter Narration (What to Say):
 > *"Welcome to TwinDigital. Traditional Kubernetes management is reactive—you deploy a change, pray, and watch Datadog for alerts.*
 >
-> *TwinDigital solves this by creating a true digital twin of your Amazon EKS cluster. Notice how this directed graph is rendered live from our Kubernetes Informers—not fixed polling. Every pod, deployment, and service is mirrored into our graph model in sub-second time.*
+> *TwinDigital solves this by creating a true digital twin of your Amazon EKS cluster in `ap-south-1`. Notice how this directed graph is rendered live from our Kubernetes Informers—not fixed database dumps. Every pod, deployment, and service is mirrored into our graph model in sub-second time.*
 >
-> *When I click on `auth-service`, our graph engine instantly computes its blast radius. We see every downstream and upstream dependent highlighted in amber. And watch this: when I delete a live pod via `kubectl`, our informer streams the delta into PostgreSQL and our WebSocket pushes the update to ReactFlow with zero delay."*
+> *When I click on `auth-service`, our topology-service executes an in-memory Breadth-First Search (BFS) to compute its blast radius. We see every downstream and upstream dependent highlighted in amber. And watch this: when I delete a live pod via `kubectl`, our List+Watch informer streams the delta into PostgreSQL and our React 19 frontend updates on its 5-second REST poll with zero delay."*
 
 ---
 
 ## 0:45 – 1:30 | Scene 2: What-If Simulation Engine in Action
 
 ### Visual:
-* Click on **"Simulations"** in the top navigation bar (`/simulations`).
+* Click on **"Simulate"** in the top navigation bar (`/simulate`).
 * The **Simulation Workbench** is displayed with change set controls on the left and audit history on the right.
 
 ### Action:
@@ -57,6 +57,7 @@ This script provides an exact, second-by-second walkthrough for demonstrating th
 6. The engine returns in ~80ms:
    - **Risk Level**: <span style="color:red; font-weight:bold;">CRITICAL (Score: 50/100)</span>
    - **Failed Check**: `SchedulingFit`
+   - **Projected Cost Delta**: `+$142.30/mo` (calculated via `cost-risk-service`)
    - **Explanation**: *"Cluster capacity exhausted. Total cluster allocatable is 3860m; requested change requires 6000m CPU. Pods will enter permanently Pending status."*
 
 ### Presenter Narration (What to Say):
@@ -64,9 +65,9 @@ This script provides an exact, second-by-second walkthrough for demonstrating th
 >
 > *Normally, applying this would silently exhaust our nodes, causing other workloads to be evicted and triggering a P1 incident.*
 >
-> *Instead, they submit the change to TwinDigital. In 80 milliseconds, our deterministic simulation engine evaluates 5 discrete checks: SchedulingFit, LimitSanity, NodeRemovalImpact, HpaImpact, and BlastRadius.*
+> *Instead, they submit the change to TwinDigital at `/simulate`. In 80 milliseconds, our deterministic simulation engine evaluates 5 discrete checks: SchedulingFit, LimitSanity, NodeRemovalImpact, HpaImpact, and BlastRadius, while querying `cost-risk-service` for the estimated monthly financial cost delta.*
 >
-> *It immediately flags this as CRITICAL. It bin-packs the pods against our real cluster capacity, detects that we only have 3860 millicores available, and warns us that 3 pods will fail to schedule. We prevented a production outage before touching a single YAML file."*
+> *It immediately flags this as CRITICAL. It bin-packs the pods against our real cluster capacity, detects that we only have 3860 millicores available, warns us that 3 pods will fail to schedule, and shows the cost impact. We prevented a production outage before touching a single YAML file."*
 
 ---
 
@@ -94,11 +95,11 @@ This script provides an exact, second-by-second walkthrough for demonstrating th
    ```
 
 ### Presenter Narration (What to Say):
-> *"Next is cloud cost optimization. TwinDigital doesn't rely on guesswork or static rules. Our cost-risk-service queries the Prometheus PromQL HTTP API for true 7-day p95 CPU and memory working set metrics.*
+> *"Next is cloud cost optimization. TwinDigital doesn't rely on guesswork or static rules. Our combined cost-risk-service queries the Prometheus PromQL HTTP API for true 7-day p95 CPU and memory working set metrics.*
 >
 > *Looking at our table, we see `billing-service` requesting 500m CPU and 1GB of memory. But its real 95th percentile usage over the past 7 days is only 45 millicores and 180 megabytes—over 85% waste!*
 >
-> *TwinDigital calculates right-sized values with a 25% safety buffer and integrates with the AWS Cost Explorer API via IRSA, with an in-memory Caffeine cache so we don't get billed for duplicate queries. Right-sizing these two workloads immediately saves 24% of our cluster bill."*
+> *TwinDigital calculates right-sized values with a 25% safety buffer and integrates with the AWS Cost Explorer API via IRSA in `ap-south-1`, with an in-memory Caffeine cache so we don't get billed for duplicate queries. Right-sizing these two workloads immediately saves 24% of our cluster bill."*
 
 ---
 
@@ -116,8 +117,8 @@ kubectl exec -n twindigital deploy/gateway -c gateway -- touch /root/malicious.s
 
 ### Action 2 (Automatic Rollback):
 ```bash
-# Push an invalid container image to trigger automatic rollback:
-kubectl set image deployment/gateway gateway=twindigital/gateway:invalid-tag-v99 -n twindigital
+# Push an invalid Amazon ECR container image to trigger automatic rollback:
+kubectl set image deployment/gateway gateway=112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/gateway:invalid-tag-v99 -n twindigital
 kubectl rollout status deployment/gateway -n twindigital --timeout=15s
 # Show pipeline or script triggering instant recovery:
 kubectl rollout undo deployment/gateway -n twindigital
@@ -130,7 +131,7 @@ kubectl get pods -n twindigital -l app.kubernetes.io/name=gateway
 >
 > *All our manifests enforce Kubernetes Restricted Pod Security Standards: non-root user 10001, capabilities dropped, seccomp RuntimeDefault, and read-only root filesystems. When an attacker attempts to write an unauthorized binary, the kernel immediately blocks it.*
 >
-> *Our NetworkPolicies enforce default-deny isolation, and our declarative Jenkins CI/CD pipeline runs Trivy image scanning, SonarQube quality gates, and automated rollout verification.*
+> *Our NetworkPolicies enforce default-deny isolation, and our 8-stage declarative Jenkins CI/CD pipeline runs Trivy image scanning, SonarQube quality gates, non-blocking OWASP ZAP DAST audits, and pushes to Amazon ECR.*
 >
 > *If a bad deployment is pushed, our pipeline catches the failure and triggers an automatic `rollout undo`, keeping the platform 100% available.*
 >
@@ -140,7 +141,7 @@ kubectl get pods -n twindigital -l app.kubernetes.io/name=gateway
 
 ## Demo Checklist & Preparation
 
-- [ ] Docker Compose / EKS services running (`postgres`, `redis`, `gateway`, all 5 Spring Boot services).
+- [ ] Docker Compose / EKS services running (`postgres`, `redis`, `gateway`, all 5 Spring Boot 3.3 Java services).
 - [ ] Frontend running on `http://localhost:5173`.
-- [ ] Terminal open with `kubectl` context set to `twindigital` namespace.
+- [ ] Terminal open with `kubectl` context set to `twindigital` namespace in `ap-south-1`.
 - [ ] Pre-flight sanity check: `curl http://localhost:8080/health` returns `UP`.

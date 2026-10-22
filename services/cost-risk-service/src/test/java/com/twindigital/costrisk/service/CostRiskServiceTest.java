@@ -62,6 +62,7 @@ class CostRiskServiceTest {
         ReflectionTestUtils.setField(costRiskService, "awsRegion", "ap-south-1");
         ReflectionTestUtils.setField(costRiskService, "defaultHourlyNodeCost", 0.0416);
         ReflectionTestUtils.setField(costRiskService, "monthlyHours", 730.0);
+        ReflectionTestUtils.setField(costRiskService, "eksControlPlaneHourlyCost", 0.10);
         costRiskService.initMetrics();
     }
 
@@ -89,6 +90,7 @@ class CostRiskServiceTest {
 
         // Then
         assertThat(report).isNotNull();
+        assertThat(report.isDataAvailable()).isTrue();
         assertThat(report.getTotalOverprovisionedPods()).isEqualTo(1);
         assertThat(report.getPotentialMonthlySavingsUsd()).isGreaterThan(0.0);
 
@@ -104,6 +106,35 @@ class CostRiskServiceTest {
         // Verify Micrometer gauge updated
         double gaugeValue = meterRegistry.get("twin_overprovisioned_pods").gauge().value();
         assertThat(gaugeValue).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("Should return dataAvailable=false and no fake numbers when Prometheus has no metrics")
+    void shouldReturnDataAvailableFalseWhenPrometheusHasNoMetrics() {
+        ClusterPodEntity pod = ClusterPodEntity.builder()
+                .clusterName(CLUSTER)
+                .namespace("twindigital")
+                .name("billing-service-pod-1")
+                .ownerName("billing-service")
+                .cpuRequests("500m")
+                .memoryRequests("1024Mi")
+                .build();
+
+        when(podRepository.findByClusterName(CLUSTER)).thenReturn(List.of(pod));
+        when(prometheusClient.queryPodCpuUsageP95()).thenReturn(Collections.emptyMap());
+        when(prometheusClient.queryPodMemoryUsageP95()).thenReturn(Collections.emptyMap());
+
+        OverprovisionedReport report = costRiskService.getOverprovisionedReport(CLUSTER);
+
+        assertThat(report).isNotNull();
+        assertThat(report.isDataAvailable()).isFalse();
+        assertThat(report.getTotalOverprovisionedPods()).isEqualTo(0);
+        assertThat(report.getPotentialMonthlySavingsUsd()).isEqualTo(0.0);
+        assertThat(report.getOverprovisionedPods()).isEmpty();
+
+        // Verify Micrometer gauge updated to 0
+        double gaugeValue = meterRegistry.get("twin_overprovisioned_pods").gauge().value();
+        assertThat(gaugeValue).isEqualTo(0.0);
     }
 
     @Test
@@ -133,7 +164,7 @@ class CostRiskServiceTest {
     }
 
     @Test
-    @DisplayName("Should gracefully fallback to instance pricing catalog when AWS Cost Explorer is offline")
+    @DisplayName("Should fallback to pricing catalog and include EKS control plane cost ($73/mo)")
     void shouldFallbackToPricingCatalogWhenAwsOffline() {
         // Given AWS Cost Explorer returns empty (offline mode)
         when(awsCostExplorerClient.getMonthlyCost(CLUSTER)).thenReturn(Optional.empty());
@@ -143,6 +174,8 @@ class CostRiskServiceTest {
         when(nodeRepository.findByClusterName(CLUSTER)).thenReturn(List.of(node1, node2));
 
         // Instance pricing: 2 nodes * $0.0416/hr * 730 hrs = $60.74/mo
+        // Plus Amazon EKS control plane: $0.10/hr * 730 hrs = $73.00/mo
+        // Total = $133.74/mo
         when(pricingRepository.findByRegionAndInstanceType("ap-south-1", "t3.medium"))
                 .thenReturn(Optional.of(InstancePricingEntity.builder().onDemandPrice(0.0416).build()));
         when(podRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
@@ -153,7 +186,8 @@ class CostRiskServiceTest {
         // Then
         assertThat(summary).isNotNull();
         assertThat(summary.getDataSource()).isEqualTo("INSTANCE_PRICING_CATALOG");
-        assertThat(summary.getTotalMonthlyCostUsd()).isEqualTo(60.74);
+        assertThat(summary.getTotalMonthlyCostUsd()).isEqualTo(133.74);
+        assertThat(summary.getControlPlaneCostUsd()).isEqualTo(73.00);
     }
 
     @Test

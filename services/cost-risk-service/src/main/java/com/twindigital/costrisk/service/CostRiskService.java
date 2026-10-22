@@ -41,10 +41,13 @@ public class CostRiskService {
     @Value("${cost.monthly-hours:730.0}")
     private double monthlyHours;
 
+    @Value("${cost.eks-control-plane-hourly:0.10}")
+    private double eksControlPlaneHourlyCost;
+
     private static final String DEFAULT_CLUSTER = "twindigital-cluster";
 
-    // Micrometer Gauges
-    private final AtomicReference<Double> costEstimatedGauge = new AtomicReference<>(60.74);
+    // Micrometer Gauges: 2 nodes @ $0.0416 * 730h ($60.74) + EKS control plane ($73.00) = $133.74
+    private final AtomicReference<Double> costEstimatedGauge = new AtomicReference<>(133.74);
     private final AtomicInteger overprovisionedPodsGauge = new AtomicInteger(0);
 
     @PostConstruct
@@ -65,6 +68,7 @@ public class CostRiskService {
     /**
      * Identifies over-provisioned pods by comparing PromQL usage (7-day p95) with requests,
      * recommending right-sized resource values and potential cost savings.
+     * When Prometheus has no data, returns dataAvailable=false instead of synthetic fallbacks.
      */
     public OverprovisionedReport getOverprovisionedReport(String cluster) {
         String clusterName = (cluster != null && !cluster.isBlank()) ? cluster : DEFAULT_CLUSTER;
@@ -78,6 +82,22 @@ public class CostRiskService {
         Map<String, Double> cpuUsageMap = prometheusClient.queryPodCpuUsageP95();
         Map<String, Long> memUsageMap = prometheusClient.queryPodMemoryUsageP95();
 
+        boolean dataAvailable = (!cpuUsageMap.isEmpty() || !memUsageMap.isEmpty());
+        if (!dataAvailable) {
+            log.info("Prometheus metrics unavailable for cluster '{}' - returning dataAvailable=false", clusterName);
+            overprovisionedPodsGauge.set(0);
+            return OverprovisionedReport.builder()
+                    .totalPodsAnalyzed(pods.size())
+                    .totalOverprovisionedPods(0)
+                    .potentialMonthlySavingsUsd(0.0)
+                    .potentialAnnualSavingsUsd(0.0)
+                    .overprovisionedPods(Collections.emptyList())
+                    .dataAvailable(false)
+                    .evaluatedWindow("7-day p95 PromQL (no data)")
+                    .evaluatedAt(Instant.now())
+                    .build();
+        }
+
         List<OverprovisionedPod> overprovisionedList = new ArrayList<>();
         double totalMonthlySavings = 0.0;
 
@@ -87,29 +107,39 @@ public class CostRiskService {
 
             if (reqCpuMillis <= 0 || reqMemBytes <= 0) continue;
 
-            // Actual p95 usage from Prometheus (or realistic baseline fallback if Prometheus offline)
-            double actualCpuMillis = cpuUsageMap.getOrDefault(pod.getName(), (double) reqCpuMillis * 0.18);
-            long actualMemBytes = memUsageMap.getOrDefault(pod.getName(), (long) (reqMemBytes * 0.22));
+            // Actual p95 usage from Prometheus without synthetic fallbacks
+            Double actualCpuMillis = cpuUsageMap.get(pod.getName());
+            Long actualMemBytes = memUsageMap.get(pod.getName());
 
-            double cpuUtilRatio = actualCpuMillis / (double) reqCpuMillis;
-            double memUtilRatio = (double) actualMemBytes / (double) reqMemBytes;
+            // If no Prometheus data exists for this specific pod, skip it
+            if (actualCpuMillis == null && actualMemBytes == null) {
+                continue;
+            }
+
+            double cpuUtilRatio = (actualCpuMillis != null) ? (actualCpuMillis / (double) reqCpuMillis) : 1.0;
+            double memUtilRatio = (actualMemBytes != null) ? ((double) actualMemBytes / (double) reqMemBytes) : 1.0;
 
             // Flag as over-provisioned if CPU util < 35% OR Memory util < 40%
-            boolean isCpuOver = cpuUtilRatio < 0.35;
-            boolean isMemOver = memUtilRatio < 0.40;
+            boolean isCpuOver = (actualCpuMillis != null) && (cpuUtilRatio < 0.35);
+            boolean isMemOver = (actualMemBytes != null) && (memUtilRatio < 0.40);
 
             if (isCpuOver || isMemOver) {
-                // Right-size with safety headroom: +25% on CPU (min 50m), +30% on Memory
-                long recCpuMillis = Math.max(50L, (long) Math.ceil(actualCpuMillis * 1.25));
-                long recMemBytes = Math.max(64L * 1024L * 1024L, (long) Math.ceil(actualMemBytes * 1.30));
+                double effectiveCpu = (actualCpuMillis != null) ? actualCpuMillis : reqCpuMillis;
+                long effectiveMem = (actualMemBytes != null) ? actualMemBytes : reqMemBytes;
 
-                double cpuWastePct = Math.max(0.0, (1.0 - cpuUtilRatio) * 100.0);
-                double memWastePct = Math.max(0.0, (1.0 - memUtilRatio) * 100.0);
+                // Right-size with safety headroom: +25% on CPU (min 50m), +30% on Memory
+                long recCpuMillis = Math.max(50L, (long) Math.ceil(effectiveCpu * 1.25));
+                long recMemBytes = Math.max(64L * 1024L * 1024L, (long) Math.ceil(effectiveMem * 1.30));
+
+                double cpuWastePct = (actualCpuMillis != null) ? Math.max(0.0, (1.0 - cpuUtilRatio) * 100.0) : 0.0;
+                double memWastePct = (actualMemBytes != null) ? Math.max(0.0, (1.0 - memUtilRatio) * 100.0) : 0.0;
 
                 // Estimate dollar waste based on per-pod resource attribution ($0.0416/node-hr on 2000m CPU node)
                 // Hourly cost per core ~= $0.0208 -> $0.0000208 / millicore-hour
-                double cpuWasteHourly = (double) (reqCpuMillis - recCpuMillis) * (0.0208 / 1000.0);
-                double memWasteHourly = ((double) (reqMemBytes - recMemBytes) / (1024.0 * 1024.0 * 1024.0)) * 0.003;
+                double cpuWasteHourly = (actualCpuMillis != null && reqCpuMillis > recCpuMillis)
+                        ? (double) (reqCpuMillis - recCpuMillis) * (0.0208 / 1000.0) : 0.0;
+                double memWasteHourly = (actualMemBytes != null && reqMemBytes > recMemBytes)
+                        ? ((double) (reqMemBytes - recMemBytes) / (1024.0 * 1024.0 * 1024.0)) * 0.003 : 0.0;
                 double monthlyWasteUsd = Math.max(0.50, (cpuWasteHourly + memWasteHourly) * monthlyHours);
 
                 totalMonthlySavings += monthlyWasteUsd;
@@ -123,10 +153,10 @@ public class CostRiskService {
                         .serviceName(serviceName)
                         .nodeName(pod.getNodeName())
                         .currentCpuRequest(formatCpu(reqCpuMillis))
-                        .p95CpuUsage(formatCpu((long) actualCpuMillis))
+                        .p95CpuUsage(actualCpuMillis != null ? formatCpu((long) actualCpuMillis.doubleValue()) : "N/A")
                         .recommendedCpuRequest(formatCpu(recCpuMillis))
                         .currentMemoryRequest(formatMemory(reqMemBytes))
-                        .p95MemoryUsage(formatMemory(actualMemBytes))
+                        .p95MemoryUsage(actualMemBytes != null ? formatMemory(actualMemBytes) : "N/A")
                         .recommendedMemoryRequest(formatMemory(recMemBytes))
                         .cpuUtilizationRatio(Math.round(cpuUtilRatio * 100.0) / 100.0)
                         .memoryUtilizationRatio(Math.round(memUtilRatio * 100.0) / 100.0)
@@ -148,6 +178,7 @@ public class CostRiskService {
                 .potentialMonthlySavingsUsd(Math.round(totalMonthlySavings * 100.0) / 100.0)
                 .potentialAnnualSavingsUsd(Math.round(totalMonthlySavings * 12.0 * 100.0) / 100.0)
                 .overprovisionedPods(overprovisionedList)
+                .dataAvailable(dataAvailable)
                 .evaluatedWindow("7-day p95 PromQL")
                 .evaluatedAt(Instant.now())
                 .build();
@@ -156,6 +187,8 @@ public class CostRiskService {
     /**
      * Returns cluster monthly cost summary, attributing costs by namespace and service,
      * integrating with AWS Cost Explorer with fallback to instance pricing catalog.
+     * Note: Cost Explorer is account-wide unless filtered by a cluster tag.
+     * Also includes Amazon EKS control plane cost ($0.10/hr = ~$73.00/month).
      */
     public CostSummaryResponse getCostSummary(String cluster) {
         String clusterName = (cluster != null && !cluster.isBlank()) ? cluster : DEFAULT_CLUSTER;
@@ -169,16 +202,28 @@ public class CostRiskService {
         List<ClusterNodeEntity> nodes = nodeRepository.findByClusterName(clusterName);
         int nodeCount = Math.max(2, nodes.size());
 
+        // Amazon EKS control plane is billed at $0.10 per cluster-hour
+        double eksControlPlaneMonthlyCost = eksControlPlaneHourlyCost * monthlyHours;
+
         if (awsCostOpt.isPresent() && awsCostOpt.get().getTotalMonthlyCostUsd() > 0.0) {
             totalMonthlyCost = awsCostOpt.get().getTotalMonthlyCostUsd();
+            // If AWS Cost Explorer is filtered by EC2 cluster tags, EKS control plane might not carry the tag.
+            // Check if EKS service cost is included; if not, add control plane cost.
+            boolean includesEks = awsCostOpt.get().getCostByService().keySet().stream()
+                    .anyMatch(k -> k.toLowerCase().contains("kubernetes") || k.toLowerCase().contains("eks"));
+            if (!includesEks) {
+                totalMonthlyCost += eksControlPlaneMonthlyCost;
+            }
             dataSource = "AWS_COST_EXPLORER";
         } else {
             // Compute from instance pricing catalog (e.g. t3.medium in ap-south-1 @ $0.0416/hr)
+            // plus Amazon EKS control plane ($0.10/hr * 730h = $73.00/mo)
             double hourlyRate = pricingRepository.findByRegionAndInstanceType(awsRegion, "t3.medium")
                     .map(InstancePricingEntity::getOnDemandPrice)
                     .orElse(defaultHourlyNodeCost);
 
-            totalMonthlyCost = nodeCount * hourlyRate * monthlyHours;
+            double nodeCost = nodeCount * hourlyRate * monthlyHours;
+            totalMonthlyCost = nodeCost + eksControlPlaneMonthlyCost;
             dataSource = "INSTANCE_PRICING_CATALOG";
         }
 
@@ -235,6 +280,8 @@ public class CostRiskService {
                 .dataSource(dataSource)
                 .potentialMonthlySavingsUsd(overReport.getPotentialMonthlySavingsUsd())
                 .overprovisionedPodCount(overReport.getTotalOverprovisionedPods())
+                .dataAvailable(overReport.isDataAvailable())
+                .controlPlaneCostUsd(Math.round(eksControlPlaneMonthlyCost * 100.0) / 100.0)
                 .byNamespace(byNamespace)
                 .byService(byService)
                 .lastUpdated(Instant.now())

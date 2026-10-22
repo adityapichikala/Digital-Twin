@@ -3,13 +3,8 @@ import {
   DollarSign,
   TrendingDown,
   AlertTriangle,
-  Server,
-  Cpu,
-  HardDrive,
   RefreshCw,
   PieChart,
-  ArrowDownRight,
-  ShieldCheck,
   CheckCircle,
 } from 'lucide-react';
 import api from '../api/client';
@@ -38,6 +33,7 @@ interface OverprovisionedReport {
   potentialAnnualSavingsUsd: number;
   overprovisionedPods: OverprovisionedPod[];
   evaluatedWindow: string;
+  dataAvailable?: boolean;
 }
 
 interface NamespaceCost {
@@ -61,6 +57,8 @@ interface CostSummary {
   dataSource: string;
   potentialMonthlySavingsUsd: number;
   overprovisionedPodCount: number;
+  controlPlaneCostUsd?: number;
+  dataAvailable?: boolean;
   byNamespace: NamespaceCost[];
   byService: ServiceCost[];
   lastUpdated: string;
@@ -71,6 +69,7 @@ export default function CostRiskPage() {
   const [overReport, setOverReport] = useState<OverprovisionedReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'overprovisioned' | 'breakdown'>('overprovisioned');
+  const [isDemoData, setIsDemoData] = useState<boolean>(false);
 
   async function fetchData() {
     setLoading(true);
@@ -90,69 +89,41 @@ export default function CostRiskPage() {
 
       setCostSummary(costRes.data);
       setOverReport(overRes.data);
+      setIsDemoData(false);
     } catch (err) {
-      console.warn('Cost API offline; providing client-side fallback demonstration:', err);
-      // Realistic fallback demonstration
+      console.warn('Cost API offline; providing truthful offline response with DEMO DATA banner:', err);
+      setIsDemoData(true);
+      // Realistic pricing catalog without synthetic right-sizing fake numbers
       setCostSummary({
-        totalMonthlyCostUsd: 60.74,
-        totalAnnualCostUsd: 728.88,
+        totalMonthlyCostUsd: 133.74,
+        totalAnnualCostUsd: 1604.88,
         currency: 'USD',
         dataSource: 'INSTANCE_PRICING_CATALOG',
-        potentialMonthlySavingsUsd: 14.50,
-        overprovisionedPodCount: 2,
+        potentialMonthlySavingsUsd: 0.0,
+        overprovisionedPodCount: 0,
+        controlPlaneCostUsd: 73.0,
+        dataAvailable: false,
         byNamespace: [
-          { namespace: 'twindigital', monthlyCostUsd: 42.50, percentOfTotal: 70.0, podCount: 4 },
-          { namespace: 'monitoring', monthlyCostUsd: 18.24, percentOfTotal: 30.0, podCount: 2 },
+          { namespace: 'twindigital', monthlyCostUsd: 85.00, percentOfTotal: 63.6, podCount: 4 },
+          { namespace: 'monitoring', monthlyCostUsd: 48.74, percentOfTotal: 36.4, podCount: 2 },
         ],
         byService: [
-          { serviceName: 'billing-service', namespace: 'twindigital', monthlyCostUsd: 18.22, percentOfTotal: 30.0 },
-          { serviceName: 'auth-service', namespace: 'twindigital', monthlyCostUsd: 14.28, percentOfTotal: 23.5 },
-          { serviceName: 'gateway', namespace: 'twindigital', monthlyCostUsd: 10.00, percentOfTotal: 16.5 },
-          { serviceName: 'prometheus', namespace: 'monitoring', monthlyCostUsd: 18.24, percentOfTotal: 30.0 },
+          { serviceName: 'billing-service', namespace: 'twindigital', monthlyCostUsd: 36.44, percentOfTotal: 27.2 },
+          { serviceName: 'auth-service', namespace: 'twindigital', monthlyCostUsd: 28.56, percentOfTotal: 21.3 },
+          { serviceName: 'gateway', namespace: 'twindigital', monthlyCostUsd: 20.00, percentOfTotal: 15.0 },
+          { serviceName: 'prometheus', namespace: 'monitoring', monthlyCostUsd: 48.74, percentOfTotal: 36.5 },
         ],
         lastUpdated: new Date().toISOString(),
       });
 
       setOverReport({
-        totalPodsAnalyzed: 6,
-        totalOverprovisionedPods: 2,
-        potentialMonthlySavingsUsd: 14.50,
-        potentialAnnualSavingsUsd: 174.00,
-        evaluatedWindow: '7-day p95 PromQL',
-        overprovisionedPods: [
-          {
-            podName: 'billing-service-59bc6d-pl92x',
-            namespace: 'twindigital',
-            serviceName: 'billing-service',
-            nodeName: 'ip-10-0-1-10.ec2.internal',
-            currentCpuRequest: '1000m',
-            p95CpuUsage: '85m',
-            recommendedCpuRequest: '110m',
-            currentMemoryRequest: '2048Mi',
-            p95MemoryUsage: '320Mi',
-            recommendedMemoryRequest: '416Mi',
-            cpuWastePercent: 89.0,
-            memoryWastePercent: 80.0,
-            estimatedMonthlyWasteUsd: 8.75,
-            explanation: 'Pod utilizes only 9% of requested CPU and 16% of memory over 7-day p95 evaluation.',
-          },
-          {
-            podName: 'auth-service-7bc89d-abc12',
-            namespace: 'twindigital',
-            serviceName: 'auth-service',
-            nodeName: 'ip-10-0-2-20.ec2.internal',
-            currentCpuRequest: '500m',
-            p95CpuUsage: '45m',
-            recommendedCpuRequest: '57m',
-            currentMemoryRequest: '1024Mi',
-            p95MemoryUsage: '180Mi',
-            recommendedMemoryRequest: '234Mi',
-            cpuWastePercent: 88.6,
-            memoryWastePercent: 77.1,
-            estimatedMonthlyWasteUsd: 5.75,
-            explanation: 'Pod utilizes only 9% of requested CPU and 18% of memory over 7-day p95 evaluation.',
-          },
-        ],
+        totalPodsAnalyzed: 0,
+        totalOverprovisionedPods: 0,
+        potentialMonthlySavingsUsd: 0.0,
+        potentialAnnualSavingsUsd: 0.0,
+        evaluatedWindow: '7-day p95 PromQL (no data)',
+        dataAvailable: false,
+        overprovisionedPods: [],
       });
     } finally {
       setLoading(false);
@@ -162,6 +133,8 @@ export default function CostRiskPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const hasPrometheusData = overReport?.dataAvailable !== false;
 
   return (
     <div className="page-content" style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -182,41 +155,114 @@ export default function CostRiskPage() {
         </button>
       </div>
 
+      {/* Visible DEMO DATA Banner if backend is offline */}
+      {isDemoData && (
+        <div
+          style={{
+            background: 'rgba(234, 179, 8, 0.15)',
+            border: '1px solid rgba(234, 179, 8, 0.4)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '0.65rem 0.85rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            color: '#eab308',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+          }}
+        >
+          <span
+            style={{
+              background: '#eab308',
+              color: '#000',
+              padding: '0.1rem 0.35rem',
+              borderRadius: '3px',
+              fontSize: '0.68rem',
+              fontWeight: 800,
+              letterSpacing: '0.05em',
+            }}
+          >
+            DEMO DATA
+          </span>
+          <span>Cost & Risk service is offline. Displaying static catalog pricing demo data.</span>
+        </div>
+      )}
+
+      {/* Prometheus Telemetry Unavailable Banner */}
+      {!hasPrometheusData && (
+        <div
+          className="card animate-fade-in"
+          style={{
+            marginBottom: '1.5rem',
+            borderLeft: '4px solid #f59e0b',
+            background: 'rgba(245, 158, 11, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            padding: '1rem 1.25rem',
+          }}
+        >
+          <AlertTriangle size={24} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 600, color: '#f59e0b', fontSize: '0.9rem' }}>
+              Prometheus Metrics Unavailable (dataAvailable = false)
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+              No 7-day p95 container usage telemetry was returned by Prometheus. Synthetic estimations have been removed to preserve data integrity. Right-sizing recommendations will appear once Prometheus telemetry is active.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metric Cards Grid */}
       <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
         <div className="card">
           <div className="card-title">Monthly Estimated Cost</div>
-          <div className="card-value">${costSummary?.totalMonthlyCostUsd.toFixed(2) || '60.74'}</div>
+          <div className="card-value">${costSummary?.totalMonthlyCostUsd.toFixed(2) || '133.74'}</div>
           <div className="card-sub" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <span className="badge badge-blue">{costSummary?.dataSource || 'PRICING_CATALOG'}</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
+              (incl. ${(costSummary?.controlPlaneCostUsd ?? 73.0).toFixed(0)}/mo EKS CP)
+            </span>
           </div>
         </div>
 
         <div className="card">
           <div className="card-title">Potential Monthly Savings</div>
-          <div className="card-value" style={{ color: '#3fb950' }}>
-            ${overReport?.potentialMonthlySavingsUsd.toFixed(2) || '14.50'}
+          <div className="card-value" style={{ color: hasPrometheusData ? '#3fb950' : 'var(--color-text-secondary)' }}>
+            {hasPrometheusData
+              ? `$${overReport?.potentialMonthlySavingsUsd.toFixed(2) || '0.00'}`
+              : 'N/A'}
           </div>
-          <div className="card-sub" style={{ color: 'var(--color-accent-2)' }}>
-            <TrendingDown size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />
-            Save ~${overReport?.potentialAnnualSavingsUsd.toFixed(0) || '174'}/yr with right-sizing
+          <div className="card-sub" style={{ color: hasPrometheusData ? 'var(--color-accent-2)' : 'var(--color-text-secondary)' }}>
+            {hasPrometheusData ? (
+              <>
+                <TrendingDown size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />
+                Save ~${overReport?.potentialAnnualSavingsUsd.toFixed(0) || '0'}/yr with right-sizing
+              </>
+            ) : (
+              'Telemetry unavailable'
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="card-title">Over-provisioned Pods</div>
-          <div className="card-value" style={{ color: '#d29922' }}>
-            {overReport?.totalOverprovisionedPods ?? 2}
+          <div className="card-value" style={{ color: hasPrometheusData ? '#d29922' : 'var(--color-text-secondary)' }}>
+            {hasPrometheusData ? (overReport?.totalOverprovisionedPods ?? 0) : 'N/A'}
           </div>
           <div className="card-sub">
-            Out of {overReport?.totalPodsAnalyzed ?? 6} active cluster pods analyzed
+            {hasPrometheusData
+              ? `Out of ${overReport?.totalPodsAnalyzed ?? 0} active cluster pods analyzed`
+              : 'No PromQL metrics collected'}
           </div>
         </div>
 
         <div className="card">
           <div className="card-title">Annualized Run-Rate</div>
           <div className="card-value">
-            ${costSummary?.totalAnnualCostUsd.toFixed(2) || '728.88'}
+            ${costSummary?.totalAnnualCostUsd.toFixed(2) || '1604.88'}
           </div>
           <div className="card-sub">
             Calculated over 730 hours/month compute
@@ -230,7 +276,7 @@ export default function CostRiskPage() {
           className={`btn btn-sm ${activeTab === 'overprovisioned' ? 'btn-primary' : 'btn-outline'}`}
           onClick={() => setActiveTab('overprovisioned')}
         >
-          <TrendingDown size={14} /> Right-Sizing Recommendations ({overReport?.totalOverprovisionedPods ?? 0})
+          <TrendingDown size={14} /> Right-Sizing Recommendations ({hasPrometheusData ? (overReport?.totalOverprovisionedPods ?? 0) : 0})
         </button>
         <button
           className={`btn btn-sm ${activeTab === 'breakdown' ? 'btn-primary' : 'btn-outline'}`}
@@ -250,56 +296,80 @@ export default function CostRiskPage() {
                 Pods where 7-day p95 PromQL CPU utilization &lt; 35% or Memory working-set &lt; 40% of requested allocation.
               </p>
             </div>
-            <span className="badge badge-yellow">Window: {overReport?.evaluatedWindow || '7-day p95'}</span>
+            <span className={`badge ${hasPrometheusData ? 'badge-yellow' : 'badge-blue'}`}>
+              Window: {overReport?.evaluatedWindow || '7-day p95'}
+            </span>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}>
-                  <th style={{ padding: '0.6rem 0.5rem' }}>Pod / Service</th>
-                  <th style={{ padding: '0.6rem 0.5rem' }}>CPU (Req → p95)</th>
-                  <th style={{ padding: '0.6rem 0.5rem' }}>Recommended CPU</th>
-                  <th style={{ padding: '0.6rem 0.5rem' }}>Memory (Req → p95)</th>
-                  <th style={{ padding: '0.6rem 0.5rem' }}>Recommended RAM</th>
-                  <th style={{ padding: '0.6rem 0.5rem' }}>Est. Waste ($/mo)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overReport?.overprovisionedPods.map((p, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{p.serviceName}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
-                        {p.podName}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <div>{p.currentCpuRequest} → <span style={{ color: '#38bdf8' }}>{p.p95CpuUsage}</span></div>
-                      <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>{p.cpuWastePercent.toFixed(0)}% unused</div>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <span className="badge badge-green" style={{ fontFamily: 'monospace' }}>
-                        {p.recommendedCpuRequest}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <div>{p.currentMemoryRequest} → <span style={{ color: '#38bdf8' }}>{p.p95MemoryUsage}</span></div>
-                      <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>{p.memoryWastePercent.toFixed(0)}% unused</div>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <span className="badge badge-green" style={{ fontFamily: 'monospace' }}>
-                        {p.recommendedMemoryRequest}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: '#3fb950' }}>
-                      ${p.estimatedMonthlyWasteUsd.toFixed(2)}/mo
-                    </td>
+          {!hasPrometheusData ? (
+            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              <AlertTriangle size={36} style={{ color: '#f59e0b', margin: '0 auto 0.75rem', opacity: 0.8 }} />
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>
+                No Prometheus Metrics Available (dataAvailable = false)
+              </div>
+              <p style={{ fontSize: '0.8rem', maxWidth: 520, margin: '0.5rem auto 0' }}>
+                Prometheus has not yet accumulated or returned 7-day p95 metrics for container CPU and memory. Synthetic fallback numbers have been removed to prevent inaccurate projections.
+              </p>
+            </div>
+          ) : (overReport?.overprovisionedPods.length ?? 0) === 0 ? (
+            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              <CheckCircle size={36} style={{ color: '#3fb950', margin: '0 auto 0.75rem', opacity: 0.8 }} />
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>
+                No Over-provisioned Pods Detected
+              </div>
+              <p style={{ fontSize: '0.8rem', maxWidth: 480, margin: '0.5rem auto 0' }}>
+                All active workloads are utilizing requested CPU and memory within target thresholds.
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                    <th style={{ padding: '0.6rem 0.5rem' }}>Pod / Service</th>
+                    <th style={{ padding: '0.6rem 0.5rem' }}>CPU (Req → p95)</th>
+                    <th style={{ padding: '0.6rem 0.5rem' }}>Recommended CPU</th>
+                    <th style={{ padding: '0.6rem 0.5rem' }}>Memory (Req → p95)</th>
+                    <th style={{ padding: '0.6rem 0.5rem' }}>Recommended RAM</th>
+                    <th style={{ padding: '0.6rem 0.5rem' }}>Est. Waste ($/mo)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {overReport?.overprovisionedPods.map((p, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{p.serviceName}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
+                          {p.podName}
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <div>{p.currentCpuRequest} → <span style={{ color: '#38bdf8' }}>{p.p95CpuUsage}</span></div>
+                        <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>{p.cpuWastePercent.toFixed(0)}% unused</div>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <span className="badge badge-green" style={{ fontFamily: 'monospace' }}>
+                          {p.recommendedCpuRequest}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <div>{p.currentMemoryRequest} → <span style={{ color: '#38bdf8' }}>{p.p95MemoryUsage}</span></div>
+                        <div style={{ fontSize: '0.7rem', color: '#f59e0b' }}>{p.memoryWastePercent.toFixed(0)}% unused</div>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <span className="badge badge-green" style={{ fontFamily: 'monospace' }}>
+                          {p.recommendedMemoryRequest}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: '#3fb950' }}>
+                        ${p.estimatedMonthlyWasteUsd.toFixed(2)}/mo
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

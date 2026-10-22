@@ -98,15 +98,27 @@ public class AwsCostExplorerClient {
                     .end(end.format(fmt))
                     .build();
 
-            GetCostAndUsageRequest request = GetCostAndUsageRequest.builder()
+            // Note: AWS Cost Explorer aggregates costs account-wide unless filtered by cluster tag.
+            // Filter by standard Kubernetes cluster tag kubernetes.io/cluster/<clusterName>
+            GetCostAndUsageRequest.Builder requestBuilder = GetCostAndUsageRequest.builder()
                     .timePeriod(interval)
                     .granularity(Granularity.MONTHLY)
                     .metrics("UnblendedCost")
                     .groupBy(GroupDefinition.builder()
                             .type(GroupDefinitionType.DIMENSION)
                             .key("SERVICE")
-                            .build())
-                    .build();
+                            .build());
+
+            if (clusterName != null && !clusterName.isBlank()) {
+                requestBuilder.filter(Expression.builder()
+                        .tags(TagValues.builder()
+                                .key("kubernetes.io/cluster/" + clusterName)
+                                .values("owned", "shared")
+                                .build())
+                        .build());
+            }
+
+            GetCostAndUsageRequest request = requestBuilder.build();
 
             GetCostAndUsageResponse response = costExplorerClient.getCostAndUsage(request);
 

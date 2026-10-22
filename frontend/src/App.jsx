@@ -18,6 +18,15 @@ function PrivateLayout({ children }) {
   );
 }
 
+function AdminOnlyRoute({ children }) {
+  const user = useAuthStore((s) => s.user);
+  const isViewer = user?.role?.toUpperCase() === 'VIEWER';
+  if (isViewer) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -29,7 +38,7 @@ export default function App() {
         <PrivateLayout><TopologyPage /></PrivateLayout>
       } />
       <Route path="/simulate" element={
-        <PrivateLayout><SimulationPage /></PrivateLayout>
+        <PrivateLayout><AdminOnlyRoute><SimulationPage /></AdminOnlyRoute></PrivateLayout>
       } />
       <Route path="/cost-risk" element={
         <PrivateLayout><CostRiskPage /></PrivateLayout>

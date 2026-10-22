@@ -14,15 +14,26 @@ import java.util.*;
 @Component
 public class PrometheusClient {
 
+    public static final String CPU_QUERY =
+            "quantile_over_time(0.95, rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])[7d:5m])";
+    public static final String CPU_FALLBACK_QUERY =
+            "rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])";
+    public static final String MEMORY_QUERY =
+            "quantile_over_time(0.95, container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}[7d])";
+    public static final String MEMORY_FALLBACK_QUERY =
+            "container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}";
+
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
 
     public PrometheusClient(
             @Value("${services.prometheus.url:http://localhost:9090}") String prometheusUrl,
             ObjectMapper objectMapper) {
-        this.webClient = WebClient.builder()
-                .baseUrl(prometheusUrl)
-                .build();
+        this(WebClient.builder().baseUrl(prometheusUrl).build(), objectMapper);
+    }
+
+    public PrometheusClient(WebClient webClient, ObjectMapper objectMapper) {
+        this.webClient = webClient;
         this.objectMapper = objectMapper;
     }
 
@@ -31,12 +42,10 @@ public class PrometheusClient {
      * Returns Map: podName -> p95 CPU millicores.
      */
     public Map<String, Double> queryPodCpuUsageP95() {
-        String query = "quantile_over_time(0.95, rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])[7d])";
-        Map<String, Double> result = executeVectorQuery(query);
+        Map<String, Double> result = executeVectorQuery(CPU_QUERY);
         if (result.isEmpty()) {
             // Fallback query without 7-day range if Prometheus has shorter retention
-            String fallbackQuery = "rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])";
-            result = executeVectorQuery(fallbackQuery);
+            result = executeVectorQuery(CPU_FALLBACK_QUERY);
         }
 
         // Convert CPU cores (e.g. 0.045) to millicores (45.0m)
@@ -52,11 +61,9 @@ public class PrometheusClient {
      * Returns Map: podName -> p95 Memory bytes.
      */
     public Map<String, Long> queryPodMemoryUsageP95() {
-        String query = "quantile_over_time(0.95, container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}[7d])";
-        Map<String, Double> result = executeVectorQuery(query);
+        Map<String, Double> result = executeVectorQuery(MEMORY_QUERY);
         if (result.isEmpty()) {
-            String fallbackQuery = "container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}";
-            result = executeVectorQuery(fallbackQuery);
+            result = executeVectorQuery(MEMORY_FALLBACK_QUERY);
         }
 
         Map<String, Long> bytesMap = new HashMap<>();
@@ -67,7 +74,6 @@ public class PrometheusClient {
     }
 
     private Map<String, Double> executeVectorQuery(String promQl) {
-        Map<String, Double> metricMap = new HashMap<>();
         try {
             String response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
@@ -79,27 +85,46 @@ public class PrometheusClient {
                     .timeout(Duration.ofSeconds(4))
                     .block();
 
-            if (response != null) {
-                JsonNode root = objectMapper.readTree(response);
-                if ("success".equalsIgnoreCase(root.path("status").asText())) {
-                    JsonNode results = root.path("data").path("result");
-                    if (results.isArray()) {
-                        for (JsonNode item : results) {
-                            String pod = item.path("metric").path("pod").asText();
-                            if (pod == null || pod.isBlank()) {
-                                pod = item.path("metric").path("pod_name").asText();
-                            }
-                            JsonNode valueNode = item.path("value");
-                            if (!pod.isBlank() && valueNode.isArray() && valueNode.size() >= 2) {
+            return parsePrometheusResponse(response);
+        } catch (Exception e) {
+            log.debug("Prometheus query '{}' unavailable: {}", promQl, e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * Parses Prometheus vector JSON response and aggregates values per pod across containers.
+     */
+    public Map<String, Double> parsePrometheusResponse(String response) {
+        Map<String, Double> metricMap = new HashMap<>();
+        if (response == null || response.isBlank()) {
+            return metricMap;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            if ("success".equalsIgnoreCase(root.path("status").asText())) {
+                JsonNode results = root.path("data").path("result");
+                if (results.isArray()) {
+                    for (JsonNode item : results) {
+                        String pod = item.path("metric").path("pod").asText();
+                        if (pod == null || pod.isBlank()) {
+                            pod = item.path("metric").path("pod_name").asText();
+                        }
+                        JsonNode valueNode = item.path("value");
+                        if (!pod.isBlank() && valueNode.isArray() && valueNode.size() >= 2) {
+                            try {
                                 double val = Double.parseDouble(valueNode.get(1).asText());
-                                metricMap.put(pod, val);
-                            }
+                                if (!Double.isNaN(val) && !Double.isInfinite(val)) {
+                                    // Sum per pod across containers
+                                    metricMap.merge(pod, val, Double::sum);
+                                }
+                            } catch (NumberFormatException ignored) {}
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            log.debug("Prometheus query '{}' unavailable: {}", promQl, e.getMessage());
+            log.debug("Failed to parse Prometheus response: {}", e.getMessage());
         }
         return metricMap;
     }

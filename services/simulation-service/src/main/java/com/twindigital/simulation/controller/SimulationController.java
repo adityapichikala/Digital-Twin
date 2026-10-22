@@ -30,15 +30,18 @@ public class SimulationController {
             @RequestBody Map<String, Object> body,
             @RequestHeader(value = "X-User-Id", required = false) String headerUserId) {
 
-        String user = headerUserId != null && !headerUserId.isBlank() ? headerUserId : "anonymous";
-        String cluster = "twindigital-cluster";
-
-        if (body.containsKey("user") && body.get("user") != null) {
-            user = body.get("user").toString();
+        String user = "anonymous";
+        if (headerUserId != null && !headerUserId.isBlank()) {
+            user = headerUserId.trim();
+        } else if (body.containsKey("user") && body.get("user") != null && !body.get("user").toString().isBlank()) {
+            user = body.get("user").toString().trim();
         }
+
+        String cluster = "twindigital-cluster";
         if (body.containsKey("clusterName") && body.get("clusterName") != null) {
             cluster = body.get("clusterName").toString();
         }
+
 
         ChangeSet changeSet;
         if (body.containsKey("changeSet") && body.get("changeSet") instanceof Map<?, ?> csMap) {

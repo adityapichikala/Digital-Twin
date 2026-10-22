@@ -69,7 +69,7 @@ We selected the **`SharedIndexInformer`** mechanism implemented in [`cluster-syn
 ## 6. Consequences
 
 ### Positive:
-* Immediate responsiveness in the UI: deleting a pod via `kubectl delete pod` updates the ReactFlow topology canvas and simulation engine in less than 500 milliseconds.
+* Immediate responsiveness in the backend database: deleting a pod via `kubectl delete pod` persists the delta into PostgreSQL in less than 500 milliseconds, displayed in the ReactFlow UI on the next 5-second poll without manual page reload.
 * Drastically reduced load on the EKS control plane.
 
 ### Negative / Trade-offs:

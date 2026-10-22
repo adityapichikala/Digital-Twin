@@ -75,7 +75,7 @@ module "rds" {
   cluster_name               = var.cluster_name
   vpc_id                     = module.vpc.vpc_id
   private_subnet_ids         = module.vpc.private_subnet_ids
-  eks_node_security_group_id = module.eks.node_security_group_id
+  eks_node_security_group_id = module.eks.cluster_security_group_id
 
   db_name             = var.db_name
   db_username         = var.db_username
@@ -84,3 +84,17 @@ module "rds" {
   deletion_protection = var.rds_deletion_protection
   skip_final_snapshot = var.rds_skip_final_snapshot
 }
+
+# ── Redis (ElastiCache) ───────────────────────────────────────
+module "redis" {
+  source = "../../modules/redis"
+
+  cluster_name          = var.cluster_name
+  vpc_id                = module.vpc.vpc_id
+  private_subnet_ids    = module.vpc.private_subnet_ids
+  eks_security_group_id = module.eks.cluster_security_group_id
+
+  node_type          = var.redis_node_type
+  num_cache_clusters = var.redis_num_cache_clusters
+}
+

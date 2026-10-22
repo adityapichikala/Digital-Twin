@@ -57,12 +57,13 @@ CREATE TABLE IF NOT EXISTS td_services (
     selector           JSONB,
     ports              JSONB,
     labels             JSONB,
+    annotations        JSONB,
     last_synced_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (cluster_name, namespace, name)
 );
 CREATE INDEX IF NOT EXISTS idx_td_services_cluster_ns ON td_services(cluster_name, namespace);
 
--- 4. Deployments (Replicas, Ready/Available Replicas, Selector, Labels)
+-- 4. Deployments (Replicas, Ready/Available Replicas, Selector, Labels, Annotations)
 CREATE TABLE IF NOT EXISTS td_deployments (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cluster_name       VARCHAR(200) NOT NULL,
@@ -74,6 +75,7 @@ CREATE TABLE IF NOT EXISTS td_deployments (
     updated_replicas   INT NOT NULL DEFAULT 0,
     selector           JSONB,
     labels             JSONB,
+    annotations        JSONB,
     last_synced_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (cluster_name, namespace, name)
 );

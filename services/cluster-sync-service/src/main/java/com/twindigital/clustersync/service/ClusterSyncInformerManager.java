@@ -17,6 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +39,9 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
 
     private SharedInformerFactory informerFactory;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private Instant syncStartTime;
+    private final AtomicBoolean initialSyncCompleted = new AtomicBoolean(false);
+    private final List<SharedIndexInformer<?>> registeredInformers = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService supervisorExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "k8s-informer-supervisor");
         t.setDaemon(true);
@@ -62,6 +68,10 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
                     informerFactory.stopAllRegisteredInformers();
                 } catch (Exception ignored) {}
             }
+
+            syncStartTime = Instant.now();
+            initialSyncCompleted.set(false);
+            registeredInformers.clear();
 
             informerFactory = new SharedInformerFactory(apiClient);
 
@@ -91,23 +101,47 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
 
     private void monitorHealthAndConnectivity() {
         try {
-            if (!healthTracker.isHealthy() || !running.get()) {
+            if (!running.get()) {
                 return;
             }
 
             // Quick connectivity probe against API server
             CoreV1Api coreApi = new CoreV1Api(apiClient);
             coreApi.getAPIResources();
+            healthTracker.recordHeartbeat();
 
             // Check if informers have synced
             if (informerFactory != null) {
                 healthTracker.calculateLagSeconds();
             }
+
+            // After initial sync, delete rows with last_synced_at older than sync start
+            if (!initialSyncCompleted.get() && areAllInformersSynced()) {
+                initialSyncCompleted.set(true);
+                log.info("Initial sync completed for cluster {}. Pruning resources older than {}",
+                        properties.getClusterName(), syncStartTime);
+                persister.deleteStaleResources(properties.getClusterName(), syncStartTime);
+            }
         } catch (Exception e) {
             log.warn("Cluster watcher health probe failed: {}. Connection dropped.", e.getMessage());
             healthTracker.markDisconnected("API Server connection error: " + e.getMessage());
             triggerBackoffReconnect();
+        } finally {
+            if (running.get()) {
+                try {
+                    healthTracker.persistSyncState();
+                } catch (Exception ex) {
+                    log.error("Failed to persist sync state to td_sync_state: {}", ex.getMessage());
+                }
+            }
         }
+    }
+
+    public boolean areAllInformersSynced() {
+        if (registeredInformers.isEmpty()) {
+            return false;
+        }
+        return registeredInformers.stream().allMatch(SharedIndexInformer::hasSynced);
     }
 
     private void triggerBackoffReconnect() {
@@ -127,6 +161,7 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
                 new GenericKubernetesApi<>(V1Node.class, V1NodeList.class, "", "v1", "nodes", apiClient);
 
         SharedIndexInformer<V1Node> informer = factory.sharedIndexInformerFor(nodeApi, V1Node.class, 0L);
+        registeredInformers.add(informer);
         informer.addEventHandler(new ResourceEventHandler<V1Node>() {
             @Override
             public void onAdd(V1Node node) {
@@ -160,6 +195,7 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
                 new GenericKubernetesApi<>(V1Pod.class, V1PodList.class, "", "v1", "pods", apiClient);
 
         SharedIndexInformer<V1Pod> informer = factory.sharedIndexInformerFor(podApi, V1Pod.class, 0L);
+        registeredInformers.add(informer);
         informer.addEventHandler(new ResourceEventHandler<V1Pod>() {
             @Override
             public void onAdd(V1Pod pod) {
@@ -194,6 +230,7 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
                 new GenericKubernetesApi<>(V1Service.class, V1ServiceList.class, "", "v1", "services", apiClient);
 
         SharedIndexInformer<V1Service> informer = factory.sharedIndexInformerFor(svcApi, V1Service.class, 0L);
+        registeredInformers.add(informer);
         informer.addEventHandler(new ResourceEventHandler<V1Service>() {
             @Override
             public void onAdd(V1Service svc) {
@@ -228,6 +265,7 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
                 new GenericKubernetesApi<>(V1Deployment.class, V1DeploymentList.class, "apps", "v1", "deployments", apiClient);
 
         SharedIndexInformer<V1Deployment> informer = factory.sharedIndexInformerFor(depApi, V1Deployment.class, 0L);
+        registeredInformers.add(informer);
         informer.addEventHandler(new ResourceEventHandler<V1Deployment>() {
             @Override
             public void onAdd(V1Deployment dep) {
@@ -264,6 +302,7 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
 
         SharedIndexInformer<V2HorizontalPodAutoscaler> informer =
                 factory.sharedIndexInformerFor(hpaApi, V2HorizontalPodAutoscaler.class, 0L);
+        registeredInformers.add(informer);
 
         informer.addEventHandler(new ResourceEventHandler<V2HorizontalPodAutoscaler>() {
             @Override
@@ -301,6 +340,7 @@ public class ClusterSyncInformerManager implements SmartLifecycle {
 
         SharedIndexInformer<V1PodDisruptionBudget> informer =
                 factory.sharedIndexInformerFor(pdbApi, V1PodDisruptionBudget.class, 0L);
+        registeredInformers.add(informer);
 
         informer.addEventHandler(new ResourceEventHandler<V1PodDisruptionBudget>() {
             @Override

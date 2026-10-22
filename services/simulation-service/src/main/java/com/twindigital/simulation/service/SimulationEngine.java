@@ -43,6 +43,9 @@ public class SimulationEngine {
     @Value("${services.topology.url:http://localhost:8083}")
     private String topologyServiceUrl;
 
+    @Value("${services.cost-risk.url:http://localhost:8085}")
+    private String costRiskServiceUrl;
+
     private static final String DEFAULT_CLUSTER = "twindigital-cluster";
 
     @Transactional
@@ -78,6 +81,9 @@ public class SimulationEngine {
         // 5. Compute Cluster Capacity Summary
         ClusterCapacitySummary capacitySummary = computeCapacitySummary(context);
 
+        // 5.5 Call cost-risk estimate-change (with graceful fallback)
+        Double costDelta = estimateCostDelta(cs);
+
         // 6. Assemble Result
         UUID simulationId = UUID.randomUUID();
         SimulationResult result = SimulationResult.builder()
@@ -87,11 +93,13 @@ public class SimulationEngine {
                 .findings(findings)
                 .predictedOutcome(predictedOutcome)
                 .capacitySummary(capacitySummary)
+                .costDelta(costDelta)
                 .executedAt(Instant.now())
                 .build();
 
         // 7. Write to simulation_audit table
         recordAudit(simulationId, user, clusterName, cs, result, riskLevel, score, predictedOutcome, findings.size());
+
 
         return result;
     }
@@ -177,6 +185,54 @@ public class SimulationEngine {
             }
         } catch (Exception e) {
             log.debug("HTTP call to topology-service unavailable ({}); using internal heuristic", e.getMessage());
+        }
+        return null;
+    }
+
+    private Double estimateCostDelta(ChangeSet cs) {
+        if (cs == null || costRiskServiceUrl == null || costRiskServiceUrl.isBlank()) {
+            return null;
+        }
+        try {
+            WebClient webClient = WebClient.builder()
+                    .baseUrl(costRiskServiceUrl)
+                    .build();
+
+            Map<String, Object> reqBody = new HashMap<>();
+            if (cs.getKind() != null) {
+                reqBody.put("kind", cs.getKind().name());
+            }
+            reqBody.put("target", cs.getTarget() != null ? cs.getTarget() : "workload");
+            reqBody.put("namespace", cs.getNamespace() != null ? cs.getNamespace() : "twindigital");
+            if (cs.getReplicas() != null) {
+                reqBody.put("replicas", cs.getReplicas());
+            }
+            if (cs.getCpuRequest() != null) {
+                reqBody.put("cpuRequest", cs.getCpuRequest());
+            }
+            if (cs.getMemRequest() != null) {
+                reqBody.put("memRequest", cs.getMemRequest());
+            }
+
+            Map<?, ?> resp = webClient.post()
+                    .uri("/api/v1/cost/estimate-change")
+                    .bodyValue(reqBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block(java.time.Duration.ofSeconds(3));
+
+            if (resp != null) {
+                Object delta = resp.get("deltaMonthlyUsd");
+                if (delta == null) {
+                    delta = resp.get("costDeltaUsd");
+                }
+                if (delta instanceof Number n) {
+                    return n.doubleValue();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to call cost-risk /api/v1/cost/estimate-change at {} (graceful fallback): {}",
+                    costRiskServiceUrl, e.getMessage());
         }
         return null;
     }

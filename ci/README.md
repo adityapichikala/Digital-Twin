@@ -1,6 +1,6 @@
 # TwinDigital CI/CD Pipeline Setup & Operations Guide
 
-This guide documents the enterprise-grade, declarative CI/CD pipeline defined in [`Jenkinsfile`](../Jenkinsfile), the lightweight infrastructure setup in [`ci/docker-compose.yml`](./docker-compose.yml), and the security gates governing automated delivery to Amazon EKS.
+This guide documents the enterprise-grade, declarative CI/CD pipeline defined in [`Jenkinsfile`](../Jenkinsfile), the custom Jenkins agent image in [`ci/agent/Dockerfile`](./agent/Dockerfile), the lightweight infrastructure setup in [`ci/docker-compose.yml`](./docker-compose.yml), and the Helm configurations for Kubernetes deployment.
 
 ---
 
@@ -8,16 +8,16 @@ This guide documents the enterprise-grade, declarative CI/CD pipeline defined in
 
 ```mermaid
 flowchart TD
-    A[1. Checkout & Path Filter] -->|Detect Changed Services| B[2. Parallel Build & Tests]
+    A[1. Checkout & Path Filter] -->|Detect Changed Services & DEPLOY_ENV| B[2. Parallel Build & Tests]
     
     subgraph BuildAndTest [Parallel Test Execution]
         B --> B1[Gateway: npm test + jest-junit]
-        B --> B2[Frontend: npm run build]
+        B --> B2[Frontend: npm run lint + typecheck + build]
         B --> B3[Java Services: mvn test + JaCoCo]
     end
     
     BuildAndTest --> C[Publish JUnit & JaCoCo Coverage]
-    C --> D[3. SonarQube Scan]
+    C --> D[3. SonarQube Scan: Strict Fail-Closed]
     D --> E{SonarQube Quality Gate}
     
     E -->|FAILED| E_FAIL[ABORT PIPELINE]
@@ -29,159 +29,167 @@ flowchart TD
     H -->|YES| H_FAIL[ABORT PIPELINE: Push Blocked]
     H -->|NO| I[6. Push to ECR Registry]
     
-    I --> J[7. OWASP ZAP Baseline DAST Scan]
-    J --> K[8. Deploy to EKS]
+    I --> J[7. OWASP ZAP Baseline DAST Scan: Advisory]
+    J --> K[8. Deploy to EKS via Kustomize Overlay]
     
     subgraph RolloutVerification [Rollout Verification & Auto-Rollback]
-        K --> L[kubectl set image]
-        L --> M[kubectl rollout status timeout 180s]
-        M -->|Success| N[Deployment Verified OK]
-        M -->|Failure / Timeout| O[kubectl rollout undo: Automatic Rollback]
+        K --> L[kubectl apply -k overlay]
+        L --> M[kubectl set image no --record]
+        M --> N[kubectl rollout status timeout 180s]
+        N -->|Success| O[Deployment Verified OK]
+        N -->|Failure / Timeout| P[kubectl rollout undo: Automatic Rollback]
     end
 ```
 
 ---
 
-## 2. Running Jenkins & SonarQube Cheaply
+## 2. Dedicated Jenkins Agent Image
 
-The stack can be spun up on a single modest machine (e.g., an AWS EC2 `t3.medium` or `t3.large`, 4GB–8GB RAM) using Docker Compose.
+The pipeline runs inside a standardized Docker agent image defined in [`ci/agent/Dockerfile`](./agent/Dockerfile) instead of `agent any`. This ensures consistent execution across all build, test, and security stages without tool discrepancies.
 
-### Quickstart Command
+### Installed Tooling & Versions
+| Tool | Version / Details | Purpose |
+| :--- | :--- | :--- |
+| **OpenJDK** | 17 (Ubuntu 22.04 LTS) | Microservice compilation and JaCoCo coverage analysis |
+| **Maven** | 3.9+ | Spring Boot build lifecycle and surefire testing |
+| **Node.js & npm** | Node.js 20.x, npm latest | Gateway tests and Frontend lint, typecheck, & Vite build |
+| **Trivy** | Latest stable | Container image vulnerability scanner (HIGH/CRITICAL gate) |
+| **kubectl** | v1.29.3 | Cluster orchestration, Kustomize apply, and rollout verification |
+| **AWS CLI** | v2 | ECR authentication (`aws ecr get-login-password`) and AWS API calls |
+| **Sonar-Scanner** | 5.0.1+ | Static code analysis and SonarQube Quality Gate submission |
+| **Docker CLI** | Latest CE CLI | Building and pushing container images via `/var/run/docker.sock` |
+
+### Building and Registering the Agent Image
 ```bash
-# Navigate to the ci directory
-cd ci
+# Build the agent image locally or push to Amazon ECR:
+docker build -t twindigital/jenkins-agent:latest -f ci/agent/Dockerfile ci/agent/
 
-# Start PostgreSQL, SonarQube, and Jenkins in the background
-docker-compose up -d
-
-# Verify containers are healthy
-docker-compose ps
+# Tag and push to Amazon ECR (if running distributed Jenkins nodes):
+docker tag twindigital/jenkins-agent:latest 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/jenkins-agent:latest
+docker push 112233445566.dkr.ecr.ap-south-1.amazonaws.com/twindigital/jenkins-agent:latest
 ```
 
-### Access URLs & Default Credentials
-| Service | URL | Default Credentials | Memory Allocation |
+---
+
+## 3. Running Jenkins & SonarQube Cheaply (Docker Compose)
+
+The CI/CD stack can be hosted on a single machine (e.g., an AWS EC2 `t3.medium` or `t3.large`, 4GB–8GB RAM) using Docker Compose.
+
+### Quickstart Setup
+1. Copy the example environment template and configure secrets:
+   ```bash
+   cd ci
+   cp .env.example .env
+   # Edit .env and supply a strong password for SONAR_DB_PASSWORD
+   ```
+2. Start PostgreSQL, SonarQube, and Jenkins in the background:
+   ```bash
+   docker-compose up -d
+   ```
+3. Verify containers are healthy:
+   ```bash
+   docker-compose ps
+   ```
+
+### Access URLs & Credentials
+| Service | URL | Authentication | Memory Allocation |
 | :--- | :--- | :--- | :--- |
 | **Jenkins** | `http://localhost:8088` | Setup token in `docker logs twindigital-jenkins` | Max 1.5 GB |
 | **SonarQube** | `http://localhost:9000` | Username: `admin` / Password: `admin` | Max 1.2 GB (tuned) |
-| **PostgreSQL** | `localhost:5432` (internal) | User: `sonar` / Pass: `SonarSecurePassword123!` | Max 256 MB |
+| **PostgreSQL** | `localhost:5432` (internal) | User: `${SONAR_DB_USER}` / Pass: `${SONAR_DB_PASSWORD}` | Max 256 MB |
 
 > [!TIP]
-> **Elasticsearch Memory Tuning**: SonarQube's embedded Elasticsearch has been tuned with `ES_JAVA_OPTS=-Xms512m -Xmx512m` and `SONAR_SEARCH_JAVAADDITIONALOPTS=-Xms512m -Xmx512m` in [`ci/docker-compose.yml`](./docker-compose.yml). This prevents out-of-memory crashes on low-cost virtual machines.
+> **No Hardcoded Passwords**: All PostgreSQL and SonarQube database credentials in [`ci/docker-compose.yml`](./docker-compose.yml) are injected via `${SONAR_DB_PASSWORD}` and `${SONAR_DB_USER}` environment variables defined in `ci/.env`.
 
 ---
 
-## 3. Jenkins Configuration & Plugins
+## 4. Kubernetes Helm Deployment (Cost-Optimized Values)
 
-### Required Jenkins Plugins
-Install the following plugins via **Manage Jenkins $\rightarrow$ Plugins $\rightarrow$ Available Plugins**:
-1. **Pipeline** (`workflow-aggregator`)
-2. **SonarQube Scanner** (`sonar`)
-3. **JaCoCo plugin** (`jacoco`)
-4. **Docker Pipeline** (`docker-workflow`)
-5. **Kubernetes CLI** (`kubernetes-cli`)
-6. **HTML Publisher** (`htmlpublisher`)
-7. **AnsiColor** (`ansicolor`)
+For running Jenkins and SonarQube directly inside an EKS cluster on `t3.medium` nodes, use the dedicated, valid Helm values files:
+
+### 1. Jenkins Helm Installation
+```bash
+helm repo add jenkins https://charts.jenkins.io
+helm repo update
+
+helm upgrade --install jenkins jenkins/jenkins \
+  --namespace ci \
+  --create-namespace \
+  -f ci/helm-jenkins-values.yaml
+```
+
+### 2. SonarQube Helm Installation
+```bash
+helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+helm repo update
+
+helm upgrade --install sonarqube sonarqube/sonarqube \
+  --namespace ci \
+  --create-namespace \
+  -f ci/helm-sonarqube-values.yaml
+```
 
 ---
 
-## 4. Configuring Jenkins Credentials Store
+## 5. Required Jenkins Credentials
 
 Navigate to **Manage Jenkins $\rightarrow$ Credentials $\rightarrow$ System $\rightarrow$ Global credentials**:
 
 | Credential ID | Type | Description | Usage in Pipeline |
 | :--- | :--- | :--- | :--- |
 | `sonarqube-token` | **Secret text** | SonarQube User Token (generated in SonarQube UI) | Authenticating scanner and querying Quality Gate |
-| `aws-ecr-credentials` | **AWS Credentials** or **Username with password** | AWS Access Key / Secret Key with ECR push permissions | Logging into ECR via `aws ecr get-login-password` |
+| `aws-ecr-credentials` | **AWS Credentials** | AWS Access Key / Secret Key with ECR push permissions | Logging into ECR via `aws ecr get-login-password` |
 | `eks-kubeconfig` | **Secret file** | `kubeconfig` YAML file for the target EKS cluster | Authenticating `kubectl` during deployment |
-
----
-
-## 5. SonarQube Webhook & Quality Gate Setup
-
-To enable the `waitForQualityGate()` pipeline step to receive asynchronous webhook callbacks:
-
-1. In SonarQube (`http://localhost:9000`), log in as `admin`.
-2. Go to **Administration $\rightarrow$ Configuration $\rightarrow$ Webhooks $\rightarrow$ Create**:
-   - **Name**: `Jenkins Webhook`
-   - **URL**: `http://twindigital-jenkins:8080/sonarqube-webhook/` (or `http://<JENKINS_HOST>:8088/sonarqube-webhook/`)
-3. Go to **Quality Gates**:
-   - Set conditions:
-     - Coverage on New Code $\ge$ 80%
-     - Duplicated Lines on New Code $\le$ 3%
-     - Security Rating is A (0 vulnerabilities)
-     - Reliability Rating is A (0 bugs)
 
 ---
 
 ## 6. Pipeline Stages Walkthrough
 
-### Stage 1: Checkout & Path Filtering
+### Stage 1: Checkout, Path Filtering, & Environment Selection
 - Computes the 7-character short commit SHA (`git rev-parse --short HEAD`).
 - Compares files modified in the commit (`git diff --name-only HEAD~1 HEAD`):
   - Changes to `gateway/` mark `gateway` for build.
   - Changes to `frontend/` mark `frontend` for build.
   - Changes to `services/<svc>/` mark that microservice for build.
-  - Changes to shared configs (`k8s/`, `ci/`, `Jenkinsfile`) trigger a full build matrix.
-- Users can override auto-detection using the `TARGET_SERVICE` parameter (`all` or specific service).
+  - Changes to root configs (`k8s/`, `ci/`, `Jenkinsfile`) trigger a full build matrix.
+- **Environment Selection**: The `DEPLOY_ENV` pipeline parameter dynamically maps to:
+  - `staging`: Overlay `k8s/overlays/staging`, Namespace `twindigital-staging`
+  - `prod`: Overlay `k8s/overlays/prod`, Namespace `twindigital-prod`
 
 ### Stage 2: Parallel Build & Unit Tests
-- Executes independent builds concurrently using `parallel`:
-  - **Gateway**: `npm test -- --reporters=default --reporters=jest-junit --coverage`
-  - **Frontend**: `npm run build`
-  - **Java Services**: `mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report package`
-- **Report Publishing**: Automatically indexes JUnit test results and publishes JaCoCo coverage metrics.
+- **Gateway**: `npm test -- --reporters=default --reporters=jest-junit --coverage`
+- **Frontend**: Runs `npm run lint` (`oxlint`), `npm run typecheck` (`tsc --noEmit`), and `npm run build` (`vite build`).
+- **Java Microservices**: `mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent test org.jacoco:jacoco-maven-plugin:report package`.
+- Publishes JUnit XML test results and JaCoCo coverage trends.
 
 ### Stage 3: SonarQube Static Analysis & Quality Gate
 - Scans source code and connects JaCoCo XML reports.
-- Pauses the pipeline up to 5 minutes waiting for SonarQube Quality Gate webhook callback.
-- **Fail-Closed Behavior**: If Quality Gate status is not `OK`, the pipeline throws an unhandled error, immediately terminating execution and preventing Docker image creation.
+- **Strict Execution**: The Gateway Sonar step executes strictly without `|| true`; any scanner execution failure fails the build immediately.
+- Enforces SonarQube Quality Gate check via `waitForQualityGate()`.
 
 ### Stage 4: Docker Image Build
-- Tags images with two standard conventions:
-  - `<REGISTRY>/<service>:<GIT_SHORT_SHA>` (Immutable traceability)
-  - `<REGISTRY>/<service>:latest`
+- Builds container images tagged with both the git commit SHA and `latest`.
 
 ### Stage 5: Trivy Container Image Security Scan
-- Executes vulnerability scanning with `--severity HIGH,CRITICAL`.
-- Generates human-readable table reports and machine-readable JSON artifacts.
-- **Security Gate Enforcement**: Running with `--exit-code 1` causes Trivy to fail the stage if any unresolved HIGH or CRITICAL vulnerabilities are discovered, blocking push and deployment.
+- Scans built images for HIGH and CRITICAL vulnerabilities.
+- Enforces an automated gate (`--exit-code 1`), blocking image push and deployment if vulnerabilities are found.
 
 ### Stage 6: Push to Container Registry
-- Only reached if SonarQube and Trivy scans succeed.
-- Logs into Amazon ECR using AWS credentials and pushes the image tags.
+- Authenticates with Amazon ECR via `aws ecr get-login-password` and pushes image tags.
 
-### Stage 7: OWASP ZAP Baseline DAST Scan
-- Runs against the staging URL (`http://staging.twindigital.io`) using the official `zaproxy/zap-stable` container.
-- Publishes interactive HTML vulnerability reports in the Jenkins build view.
+### Stage 7: OWASP ZAP Baseline DAST Scan (Advisory)
+- Executes an automated DAST baseline scan against `${STAGING_URL}` using the `zaproxy/zap-stable` container.
+- **Non-blocking Advisory Rationale**: ZAP baseline scans flag passive informational and header warnings. The scan runs with `|| true` to ensure HTML and JSON reports are generated and published without halting delivery pipelines.
 
 ### Stage 8: Deploy to EKS with Automatic Rollback
-- Executes `kubectl set image deployment/<service> <service>=<imageTag> -n twindigital`.
-- Waits up to 180 seconds for `kubectl rollout status`.
-- **Automatic Rollback**: If the rollout fails (e.g. `CrashLoopBackOff`, failed liveness probe, or timeout), the pipeline catches the exception, issues `kubectl rollout undo deployment/<service>`, verifies cluster recovery, and fails the build.
-
----
-
-## 7. Verifying Pipeline Operations
-
-### Testing Rollout Failure & Automatic Rollback
-To verify automatic rollback in an ephemeral test environment:
-```bash
-# Intentionally point deployment to an invalid image tag
-kubectl set image deployment/gateway gateway=twindigital/gateway:invalid-tag-test -n twindigital
-
-# Observe Jenkins or run rollout status check
-kubectl rollout status deployment/gateway -n twindigital --timeout=30s
-# Fails with ImagePullBackOff
-
-# Execute rollback command executed by Jenkins pipeline
-kubectl rollout undo deployment/gateway -n twindigital
-kubectl rollout status deployment/gateway -n twindigital
-# Status returns to successfully rolled out
-```
-
-### Reviewing Archived Reports in Jenkins UI
-Every build automatically archives:
-1. **JUnit Test Results**: Accessible via the build status page.
-2. **JaCoCo Coverage**: Visualized on the build trend graph.
-3. **Trivy Vulnerability Reports**: Stored in `scan-reports/trivy-*.json` and `.txt`.
-4. **OWASP ZAP DAST Report**: Interactive report under **OWASP ZAP DAST Report** on the Jenkins left menu.
+- Applies the selected Kustomize overlay:
+  ```bash
+  kubectl apply -k ${OVERLAY_DIR} --namespace=${K8S_NAMESPACE}
+  ```
+- Updates deployment images:
+  ```bash
+  kubectl set image deployment/${svc} ${svc}=${imageTag} --namespace=${K8S_NAMESPACE}
+  ```
+  *(Note: The deprecated `--record` flag has been removed).*
+- Monitors rollout status with `kubectl rollout status --timeout=180s`.
+- **Automatic Rollback**: If a deployment fails or times out, the pipeline executes `kubectl rollout undo deployment/${svc}`, verifies cluster stability, and aborts the pipeline.

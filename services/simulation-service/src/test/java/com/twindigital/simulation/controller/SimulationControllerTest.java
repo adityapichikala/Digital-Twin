@@ -1,5 +1,6 @@
 package com.twindigital.simulation.controller;
 
+import com.twindigital.simulation.config.SecurityConfig;
 import com.twindigital.simulation.entity.SimulationEntities.SimulationAuditEntity;
 import com.twindigital.simulation.model.SimulationModels.*;
 import com.twindigital.simulation.repository.SimulationRepositories.SimulationAuditRepository;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = SimulationController.class)
+@Import(SecurityConfig.class)
 class SimulationControllerTest {
 
     @Autowired
@@ -105,4 +108,38 @@ class SimulationControllerTest {
                 .andExpect(jsonPath("$.riskLevel").value("CRITICAL"))
                 .andExpect(jsonPath("$.score").value(85));
     }
+
+    @Test
+    @DisplayName("POST /api/v1/simulations should prefer X-User-Id header over body.user")
+    void shouldPreferXUserIdHeaderOverBodyUser() throws Exception {
+        UUID simId = UUID.randomUUID();
+        org.mockito.ArgumentCaptor<SimulationRequest> captor = org.mockito.ArgumentCaptor.forClass(SimulationRequest.class);
+        SimulationResult result = SimulationResult.builder()
+                .simulationId(simId.toString())
+                .riskLevel(RiskLevel.LOW)
+                .costDelta(42.50)
+                .build();
+
+        when(simulationEngine.runSimulation(captor.capture())).thenReturn(result);
+
+        String jsonBody = """
+                {
+                    "user": "body-user-to-ignore",
+                    "changeSet": {
+                        "kind": "SCALE",
+                        "target": "billing-service"
+                    }
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/simulations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "admin-from-header")
+                        .content(jsonBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.costDelta").value(42.50));
+
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getUser()).isEqualTo("admin-from-header");
+    }
 }
+

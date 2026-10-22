@@ -60,6 +60,11 @@ public class DeploymentEntity {
     @Builder.Default
     private Map<String, String> labels = new HashMap<>();
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "annotations", columnDefinition = "jsonb")
+    @Builder.Default
+    private Map<String, String> annotations = new HashMap<>();
+
     @Column(name = "last_synced_at", nullable = false)
     @Builder.Default
     private Instant lastSyncedAt = Instant.now();

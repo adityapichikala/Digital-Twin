@@ -72,7 +72,7 @@ kubectl get pods -n twindigital -l app.kubernetes.io/name=gateway
 ### Scenario 1: Pod CrashLoop & Alerting
 - **Action**: Injects a failing entrypoint into `crashloop-canary` in `twindigital-chaos`.
 - **Expected Outcome**: Restarts count $> 3$ within 5 minutes.
-- **Alert Triggered**: `PodRestartFrequently` alert in Alertmanager.
+- **Alert Triggered**: `PodFrequentRestarts` alert in Alertmanager.
 - **Verification Command**:
   ```bash
   kubectl get pods -n twindigital-chaos -l app=crashloop-canary -o wide

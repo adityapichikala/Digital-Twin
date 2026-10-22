@@ -107,6 +107,8 @@ public class SimulationModels {
         private List<SimulationFinding> findings = new ArrayList<>();
         private String predictedOutcome;
         private ClusterCapacitySummary capacitySummary;
+        private Double costDelta;
         private Instant executedAt;
     }
 }
+

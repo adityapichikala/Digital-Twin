@@ -49,11 +49,12 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
-    # 2. Database egress
+    # 2. Database egress to PostgreSQL on RDS in the private subnets (port 5432)
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: postgres
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
       ports:
         - protocol: TCP
           port: 5432

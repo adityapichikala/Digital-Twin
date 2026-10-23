@@ -369,20 +369,27 @@ public class TopologyGraphService {
                                           List<TopologyEdge> outEdges) {
         // (a) Optional annotation `twindigital.io/depends-on` on Deployments or Services
         for (ClusterDeploymentEntity dep : deployments) {
-            Map<String, String> labels = dep.getLabels();
-            if (labels != null && labels.containsKey("twindigital.io/depends-on")) {
-                String dependsOn = labels.get("twindigital.io/depends-on");
+            String dependsOn = null;
+            if (dep.getAnnotations() != null && dep.getAnnotations().containsKey("twindigital.io/depends-on")) {
+                dependsOn = dep.getAnnotations().get("twindigital.io/depends-on");
+            } else if (dep.getLabels() != null && dep.getLabels().containsKey("twindigital.io/depends-on")) {
+                dependsOn = dep.getLabels().get("twindigital.io/depends-on");
+            }
+
+            if (dependsOn != null && !dependsOn.isBlank()) {
                 String[] targets = dependsOn.split(",");
                 for (String t : targets) {
                     String cleanTarget = t.trim();
-                    outEdges.add(TopologyEdge.builder()
-                            .id("e:dep-annot:" + dep.getName() + "_" + cleanTarget)
-                            .source("service:" + dep.getNamespace() + "/" + dep.getName())
-                            .target("service:" + dep.getNamespace() + "/" + cleanTarget)
-                            .type("DEPENDENCY")
-                            .label("depends on")
-                            .animated(true)
-                            .build());
+                    if (!cleanTarget.isEmpty()) {
+                        outEdges.add(TopologyEdge.builder()
+                                .id("e:dep-annot:" + dep.getName() + "_" + cleanTarget)
+                                .source("service:" + dep.getNamespace() + "/" + dep.getName())
+                                .target("service:" + dep.getNamespace() + "/" + cleanTarget)
+                                .type("DEPENDENCY")
+                                .label("depends on")
+                                .animated(true)
+                                .build());
+                    }
                 }
             }
         }

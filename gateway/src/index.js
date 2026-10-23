@@ -24,6 +24,7 @@ const simulationRoutes = require('./routes/simulation');
 const costRiskRoutes = require('./routes/costRisk');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ── 1. Security Headers & CORS ────────────────────────────────────────────────
 app.use(helmet());

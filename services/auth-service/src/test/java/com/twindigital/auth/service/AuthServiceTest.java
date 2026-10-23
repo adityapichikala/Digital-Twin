@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -126,8 +127,8 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("register saves user with ADMIN role when specified")
-    void registerAdminSuccess() {
+    @DisplayName("register ignores client-supplied role and always saves user with VIEWER role")
+    void registerIgnoresClientSuppliedRole() {
         var request = new RegisterRequest();
         request.setUsername("adminuser");
         request.setEmail("admin@example.com");
@@ -138,17 +139,32 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("admin@example.com")).thenReturn(false);
         when(passwordEncoder.encode("AdminPassword1")).thenReturn("hashed_admin");
 
-        var saved = User.builder()
-                .username("adminuser")
-                .email("admin@example.com")
-                .password("hashed_admin")
-                .role(User.Role.ADMIN)
-                .enabled(true)
-                .build();
-        when(userRepository.save(any())).thenReturn(saved);
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        when(userRepository.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
 
         User result = authService.register(request);
+        assertThat(result.getRole()).isEqualTo(User.Role.VIEWER);
+        assertThat(captor.getValue().getRole()).isEqualTo(User.Role.VIEWER);
+    }
+
+    @Test
+    @DisplayName("createAdminUser assigns ADMIN role via administrative method")
+    void createAdminUserSuccess() {
+        var request = new RegisterRequest();
+        request.setUsername("realadmin");
+        request.setEmail("realadmin@example.com");
+        request.setPassword("AdminPass123");
+
+        when(userRepository.existsByUsername("realadmin")).thenReturn(false);
+        when(userRepository.existsByEmail("realadmin@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("AdminPass123")).thenReturn("hashed_realadmin");
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        when(userRepository.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        User result = authService.createAdminUser(request, User.Role.ADMIN);
         assertThat(result.getRole()).isEqualTo(User.Role.ADMIN);
+        assertThat(captor.getValue().getRole()).isEqualTo(User.Role.ADMIN);
     }
 
     @Test

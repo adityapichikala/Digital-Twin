@@ -86,6 +86,10 @@ public class KubernetesResourceMapper {
         String name = pod.getMetadata().getName();
         String nodeName = pod.getSpec() != null ? pod.getSpec().getNodeName() : null;
 
+        Map<String, String> labels = pod.getMetadata().getLabels() != null
+                ? new HashMap<>(pod.getMetadata().getLabels())
+                : new HashMap<>();
+
         String ownerKind = null;
         String ownerName = null;
         if (pod.getMetadata().getOwnerReferences() != null && !pod.getMetadata().getOwnerReferences().isEmpty()) {
@@ -105,10 +109,6 @@ public class KubernetesResourceMapper {
                 ownerKind = "Deployment";
             }
         }
-
-        Map<String, String> labels = pod.getMetadata().getLabels() != null
-                ? new HashMap<>(pod.getMetadata().getLabels())
-                : new HashMap<>();
 
         // Aggregate container resource requests and limits
         String cpuRequests = null;

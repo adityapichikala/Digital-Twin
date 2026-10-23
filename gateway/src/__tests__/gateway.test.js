@@ -109,6 +109,23 @@ describe('Gateway - JWT Verification', () => {
     expect(res.body.message).toMatch(/expired/i);
     expect(res.body.requestId).toBeDefined();
   });
+
+  it('rejects revoked JWT (logout enforcement) with 401 and Token has been revoked message', async () => {
+    const jwtVerify = require('../middleware/jwtVerify');
+    const revokedToken = generateTestToken(
+      { sub: 'alice', username: 'alice', role: 'VIEWER', jti: 'jti-logged-out-999' }
+    );
+    jwtVerify.revokeJti('jti-logged-out-999');
+
+    const res = await request(app)
+      .get('/api/v1/topology')
+      .set('Authorization', `Bearer ${revokedToken}`);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.message).toMatch(/revoked/i);
+    jwtVerify.clearRevokedJtis();
+  });
 });
 
 describe('Gateway - Role-Based Access Control (RBAC)', () => {

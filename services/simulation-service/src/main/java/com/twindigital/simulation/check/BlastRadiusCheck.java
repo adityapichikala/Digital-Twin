@@ -99,7 +99,6 @@ public class BlastRadiusCheck implements SimulationCheck {
             upstream.add("gateway");
             downstream.addAll(List.of("topology-service", "postgres"));
         } else if (target.contains("billing")) {
-            upstream.add("gateway");
             downstream.addAll(List.of("auth-service", "postgres"));
         }
 

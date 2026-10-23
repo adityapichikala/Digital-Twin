@@ -84,14 +84,8 @@ public class AuthService {
             throw new IllegalArgumentException("Email already registered: " + request.getEmail());
         }
 
+        // Public registration always assigns VIEWER role, ignoring any client-supplied role
         User.Role role = User.Role.VIEWER;
-        if (request.getRole() != null && !request.getRole().isBlank()) {
-            try {
-                role = User.Role.valueOf(request.getRole().trim().toUpperCase());
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException("Invalid role: " + request.getRole() + ". Must be ADMIN or VIEWER.");
-            }
-        }
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -103,6 +97,31 @@ public class AuthService {
 
         User saved = userRepository.save(user);
         log.info("New user registered: username={} role={}", saved.getUsername(), saved.getRole());
+        return saved;
+    }
+
+    /**
+     * Admin-only user creation path permitting elevated roles (e.g. ADMIN, OPERATOR).
+     */
+    @Transactional
+    public User createAdminUser(RegisterRequest request, User.Role role) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new IllegalArgumentException("Username already taken: " + request.getUsername());
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Email already registered: " + request.getEmail());
+        }
+
+        User user = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(role != null ? role : User.Role.VIEWER)
+                .enabled(true)
+                .build();
+
+        User saved = userRepository.save(user);
+        log.info("Admin created user: username={} role={}", saved.getUsername(), saved.getRole());
         return saved;
     }
 

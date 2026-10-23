@@ -267,16 +267,20 @@ public class SimulationEngine {
     }
 
     private String synthesizePredictedOutcome(ChangeSet cs, List<SimulationFinding> findings, RiskLevel riskLevel) {
-        // Extract specific check outcomes
+        // 1. Check LimitSanity first (single-pod node limits & validation rules)
         for (SimulationFinding f : findings) {
-            if ("SchedulingFit".equals(f.getCheck()) && f.getSeverity() == FindingSeverity.CRITICAL) {
-                if (f.getExplanation().contains("would stay 'Pending'")) {
-                    String part = f.getExplanation().substring(f.getExplanation().indexOf(";") + 1).trim();
-                    if (part.contains(".")) part = part.substring(0, part.indexOf(".")).trim();
-                    return part;
+            if ("LimitSanity".equals(f.getCheck()) && f.getSeverity() == FindingSeverity.CRITICAL) {
+                if (f.getExplanation().contains("exceeds the allocatable capacity")) {
+                    return "Pod cannot be scheduled on any node: request exceeds largest node capacity";
                 }
-                return "Pods would stay Pending due to insufficient cluster capacity";
+                if (f.getExplanation().contains("less than")) {
+                    return "Validation failure: Limit cannot be less than request";
+                }
             }
+        }
+
+        // 2. Check NodeRemovalImpact (PDB violations and node drains)
+        for (SimulationFinding f : findings) {
             if ("NodeRemovalImpact".equals(f.getCheck()) && f.getSeverity() == FindingSeverity.CRITICAL) {
                 if (f.getExplanation().contains("violates PodDisruptionBudget")) {
                     return "Node removal violates PodDisruptionBudget: draining will be blocked";
@@ -285,13 +289,17 @@ public class SimulationEngine {
                     return "Evicted pods cannot be rescheduled on remaining nodes";
                 }
             }
-            if ("LimitSanity".equals(f.getCheck()) && f.getSeverity() == FindingSeverity.CRITICAL) {
-                if (f.getExplanation().contains("exceeds the allocatable capacity")) {
-                    return "Pod cannot be scheduled on any node: request exceeds largest node capacity";
+        }
+
+        // 3. Check SchedulingFit (aggregate cluster capacity & bin packing)
+        for (SimulationFinding f : findings) {
+            if ("SchedulingFit".equals(f.getCheck()) && f.getSeverity() == FindingSeverity.CRITICAL) {
+                if (f.getExplanation().contains("would stay 'Pending'")) {
+                    String part = f.getExplanation().substring(f.getExplanation().indexOf(";") + 1).trim();
+                    if (part.contains(".")) part = part.substring(0, part.indexOf(".")).trim();
+                    return part;
                 }
-                if (f.getExplanation().contains("less than")) {
-                    return "Validation failure: Limit cannot be less than request";
-                }
+                return "Pods would stay Pending due to insufficient cluster capacity";
             }
         }
 

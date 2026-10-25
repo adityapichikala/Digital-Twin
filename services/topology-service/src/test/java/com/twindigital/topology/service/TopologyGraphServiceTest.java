@@ -112,7 +112,8 @@ class TopologyGraphServiceTest {
                 .name("billing-service")
                 .replicas(2)
                 .readyReplicas(2)
-                .labels(Map.of("app", "billing-service", "twindigital.io/depends-on", "auth-service"))
+                .labels(Map.of("app", "billing-service"))
+                .annotations(Map.of("twindigital.io/depends-on", "auth-service"))
                 .build();
 
         ClusterPodEntity pod = ClusterPodEntity.builder()
@@ -155,7 +156,7 @@ class TopologyGraphServiceTest {
         TopologyResponse response = topologyGraphService.getTopology(cluster);
 
         assertThat(response).isNotNull();
-        assertThat(response.getNodes()).hasSize(4); // 1 node, 2 deployments, 1 pod, 1 svc
+        assertThat(response.getNodes()).hasSize(5); // 1 node, 2 deployments, 1 pod, 1 svc
 
         // Check Node -> Pod edge
         boolean nodeToPodEdge = response.getEdges().stream()
@@ -163,7 +164,7 @@ class TopologyGraphServiceTest {
                                e.getTarget().equals("pod:twindigital/billing-service-7bc89d-abc12"));
         assertThat(nodeToPodEdge).isTrue();
 
-        // Check twindigital.io/depends-on edge: billing-service -> auth-service
+        // Check twindigital.io/depends-on edge from annotations: billing-service -> auth-service
         boolean dependsOnEdge = response.getEdges().stream()
                 .anyMatch(e -> e.getSource().equals("service:twindigital/billing-service") &&
                                e.getTarget().equals("service:twindigital/auth-service") &&
@@ -171,6 +172,56 @@ class TopologyGraphServiceTest {
         assertThat(dependsOnEdge).isTrue();
 
         assertThat(response.getStaleness().isStale()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Should fallback to labels when depends-on annotation is missing")
+    void shouldFallbackToLabelsWhenAnnotationMissing() {
+        String cluster = "twindigital-cluster";
+
+        ClusterDeploymentEntity authDep = ClusterDeploymentEntity.builder()
+                .clusterName(cluster)
+                .namespace("twindigital")
+                .name("auth-service")
+                .replicas(2)
+                .readyReplicas(2)
+                .labels(Map.of("app", "auth-service"))
+                .build();
+
+        ClusterDeploymentEntity billingDep = ClusterDeploymentEntity.builder()
+                .clusterName(cluster)
+                .namespace("twindigital")
+                .name("billing-service")
+                .replicas(2)
+                .readyReplicas(2)
+                .labels(Map.of("app", "billing-service", "twindigital.io/depends-on", "auth-service"))
+                .annotations(Collections.emptyMap())
+                .build();
+
+        ClusterServiceEntity billingSvc = ClusterServiceEntity.builder()
+                .clusterName(cluster)
+                .namespace("twindigital")
+                .name("billing-service")
+                .serviceType("ClusterIP")
+                .clusterIp("172.20.10.1")
+                .selector(Map.of("app", "billing-service"))
+                .build();
+
+        when(nodeRepository.findByClusterName(cluster)).thenReturn(Collections.emptyList());
+        when(podRepository.findByClusterName(cluster)).thenReturn(Collections.emptyList());
+        when(deploymentRepository.findByClusterName(cluster)).thenReturn(List.of(authDep, billingDep));
+        when(serviceRepository.findByClusterName(cluster)).thenReturn(List.of(billingSvc));
+        when(syncStateRepository.findByClusterName(cluster)).thenReturn(Optional.empty());
+        when(dependencyRepository.findByClusterName(cluster)).thenReturn(Collections.emptyList());
+
+        TopologyResponse response = topologyGraphService.getTopology(cluster);
+
+        assertThat(response).isNotNull();
+        boolean dependsOnEdge = response.getEdges().stream()
+                .anyMatch(e -> e.getSource().equals("service:twindigital/billing-service") &&
+                               e.getTarget().equals("service:twindigital/auth-service") &&
+                               "DEPENDENCY".equals(e.getType()));
+        assertThat(dependsOnEdge).isTrue();
     }
 
     @Test

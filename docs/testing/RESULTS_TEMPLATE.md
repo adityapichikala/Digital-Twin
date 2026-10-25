@@ -47,7 +47,7 @@ This document provides the standard reporting template and evidence tracking log
 
 | Metric | Target SLA | Measured Value | Compliance Status |
 | :--- | :--- | :--- | :--- |
-| **API Gateway Unit Tests** | 100% passing | **13 / 13 passed (100%)** | **MET** |
+| **API Gateway Unit Tests** | 100% passing | **14 / 14 passed (100%)** | **MET** |
 | **Frontend TypeScript & Lint** | 0 errors | **0 errors, 3 warnings** | **MET** |
 | **API Gateway p95 Latency** | $< 300\text{ ms}$ | *not yet run* | not yet run |
 | **API Gateway p99 Latency** | $< 800\text{ ms}$ | *not yet run* | not yet run |

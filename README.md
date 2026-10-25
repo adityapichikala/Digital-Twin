@@ -223,7 +223,7 @@ kubectl get pods,svc,hpa,ingress -n twindigital
 The TwinDigital platform incorporates automated test suites, load testing scripts, chaos engineering scenarios, and digital twin prediction accuracy validation:
 
 ### 1. Test Suite Coverage Summary (Measured)
-* **Express Gateway Unit & Resilience Tests**: **13 / 13 Jest tests pass cleanly (100%)**, verifying JWT authentication, forged token rejection (401), role-based access control (`VIEWER` $\rightarrow$ 403 on `/simulate` routes, `ADMIN` allowed), `ResilientStore` rate limiting with in-memory fallback on Redis outage (`passOnStoreError: true`), and Prometheus metric exports.
+* **Express Gateway Unit & Resilience Tests**: **14 / 14 Jest tests pass cleanly (100%)**, verifying JWT authentication, revoked token rejection (401), forged token rejection (401), role-based access control (`VIEWER` $\rightarrow$ 403 on `/simulate` routes, `ADMIN` allowed), `ResilientStore` rate limiting with in-memory fallback on Redis outage (`passOnStoreError: true`), and Prometheus metric exports.
 * **Frontend SPA Static Analysis**: **TypeScript compilation (0 errors)** and **oxlint (0 errors, 3 warnings)** verified cleanly.
 * **Java Microservices Unit & BDD Tests**: Test suites defined across `services/` (`CostRiskServiceTest`, `SimulationBddScenariosTest`, `TopologyGraphServiceTest`, `ClusterSyncTest`) targeting >80% instruction coverage.
 

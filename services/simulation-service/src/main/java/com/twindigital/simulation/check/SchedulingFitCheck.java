@@ -181,10 +181,9 @@ public class SchedulingFitCheck implements SimulationCheck {
 
         // 4. Generate findings
         if (unscheduledCount > 0) {
-            FindingSeverity severity = (placedCount == 0) ? FindingSeverity.CRITICAL : FindingSeverity.HIGH;
             findings.add(SimulationFinding.builder()
                     .check(getName())
-                    .severity(severity)
+                    .severity(FindingSeverity.CRITICAL)
                     .explanation(String.format("Bin-packing check failed: Only %d of %d pod(s) can be scheduled; %d pod(s) would stay 'Pending' due to insufficient allocatable CPU/Memory on candidate nodes (requested %s CPU, %s RAM).",
                             placedCount, totalPodsToPlace, unscheduledCount,
                             KubeQuantityParser.formatCpu(reqCpu), KubeQuantityParser.formatMemory(reqMem)))

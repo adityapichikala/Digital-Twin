@@ -1,0 +1,84 @@
+# ==============================================================================
+# Prometheus Scrape Configuration for TwinDigital MVP
+# Collects:
+#   • JVM Metrics: Heap, GC pauses, Threads (:8082, :8084 /actuator/prometheus)
+#   • Container Metrics: CPU, Memory, Restarts (cAdvisor / kube-state-metrics)
+#   • API Response Times: Latency, Throughput, Error codes (:3000 /metrics, Actuator)
+# ==============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # ── 1. Cluster Sync Service (Spring Boot Actuator) ───────────────────────────
+  - job_name: 'cluster-sync-service'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'cluster-sync:8082'
+          - 'cluster-sync.twindigital.svc.cluster.local:8082'
+          - 'localhost:8082'
+        labels:
+          app: 'cluster-sync'
+          tier: 'backend'
+          environment: 'production'
+
+  # ── 2. Simulation Service (Spring Boot Actuator) ─────────────────────────────
+  - job_name: 'simulation-service'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'simulation:8084'
+          - 'simulation.twindigital.svc.cluster.local:8084'
+          - 'localhost:8084'
+        labels:
+          app: 'simulation'
+          tier: 'backend'
+          environment: 'production'
+
+  # ── 3. API Gateway (Express.js / prom-client) ────────────────────────────────
+  - job_name: 'api-gateway'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'gateway:3000'
+          - 'gateway.twindigital.svc.cluster.local:3000'
+          - 'localhost:3000'
+        labels:
+          app: 'gateway'
+          tier: 'gateway'
+          environment: 'production'
+
+  # ── 4. Kubernetes Container Metrics (cAdvisor) ──────────────────────────────
+  # When deployed in Kubernetes, Prometheus scrapes container CPU and Memory
+  - job_name: 'kubernetes-cadvisor'
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecure_skip_verify: true
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+    metric_relabel_configs:
+      # Keep container CPU, memory working set, and network metrics
+      - sourceLabels: [__name__]
+        regex: '(container_cpu_usage_seconds_total|container_memory_working_set_bytes|container_network_receive_bytes_total|container_network_transmit_bytes_total)'
+        action: keep
+      # Filter out pause containers
+      - sourceLabels: [container]
+        regex: 'POD'
+        action: drop

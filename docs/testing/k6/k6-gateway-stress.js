@@ -119,8 +119,8 @@ export default function (data) {
     });
   } else if (rand < 0.90) {
     // 4. Cluster Sync Status
-    group('GET /api/sync/status', () => {
-      const res = http.get(`${BASE_URL}/api/sync/status`, { headers });
+    group('GET /api/v1/cluster/status', () => {
+      const res = http.get(`${BASE_URL}/api/v1/cluster/status`, { headers });
       totalRequests.add(1);
       p95Latency.add(res.timings.duration);
       const passed = check(res, {

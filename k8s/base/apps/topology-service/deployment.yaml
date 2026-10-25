@@ -51,7 +51,10 @@ spec:
             - name: SERVER_SHUTDOWN
               value: "graceful"
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://postgres.twindigital.svc.cluster.local:5432/twindigital"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: jdbc_url
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:

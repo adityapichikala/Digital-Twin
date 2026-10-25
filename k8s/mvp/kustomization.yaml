@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: twindigital
+
+resources:
+  - 00-namespace.yaml
+  - 01-frontend.yaml
+  - 02-gateway.yaml
+  - 03-cluster-sync.yaml
+  - 04-simulation.yaml
+  - 05-ingress.yaml

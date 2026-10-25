@@ -344,8 +344,11 @@ public class SimulationEngine {
                              SimulationResult result, RiskLevel riskLevel, int score,
                              String outcome, int findingsCount) {
         try {
-            String csJson = objectMapper.writeValueAsString(cs);
-            String resJson = objectMapper.writeValueAsString(result);
+            if (objectMapper != null) {
+                objectMapper.findAndRegisterModules();
+            }
+            String csJson = objectMapper != null ? objectMapper.writeValueAsString(cs) : "";
+            String resJson = objectMapper != null ? objectMapper.writeValueAsString(result) : "";
 
             SimulationAuditEntity audit = SimulationAuditEntity.builder()
                     .simulationId(simulationId)

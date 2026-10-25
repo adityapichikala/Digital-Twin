@@ -1,0 +1,146 @@
+# ── Cluster Sync ServiceAccount & RBAC ─────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-sync-sa
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync
+    app.kubernetes.io/part-of: twindigital
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: twindigital-cluster-reader
+  labels:
+    app.kubernetes.io/part-of: twindigital
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "namespaces", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: twindigital-cluster-sync-binding
+subjects:
+  - kind: ServiceAccount
+    name: cluster-sync-sa
+    namespace: twindigital
+roleRef:
+  kind: ClusterRole
+  name: twindigital-cluster-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# ── Cluster Sync Deployment ───────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-sync
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync
+    app.kubernetes.io/part-of: twindigital
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-sync
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cluster-sync
+        app.kubernetes.io/part-of: twindigital
+    spec:
+      serviceAccountName: cluster-sync-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: cluster-sync
+          image: twindigital/cluster-sync:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: "8082"
+          resources:
+            requests:
+              cpu: 150m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+# ── Cluster Sync Service ──────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-sync
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync
+    app.kubernetes.io/part-of: twindigital
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cluster-sync
+---
+# ── Cluster Sync HPA ──────────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cluster-sync-hpa
+  namespace: twindigital
+  labels:
+    app.kubernetes.io/name: cluster-sync
+    app.kubernetes.io/part-of: twindigital
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cluster-sync
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80

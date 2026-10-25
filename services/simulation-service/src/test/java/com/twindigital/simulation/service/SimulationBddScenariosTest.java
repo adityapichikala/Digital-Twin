@@ -64,7 +64,7 @@ class SimulationBddScenariosTest {
     private ServerDryRunCheck serverDryRunCheck = new ServerDryRunCheck();
 
     @Spy
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
     private SimulationEngine simulationEngine;

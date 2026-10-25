@@ -749,7 +749,12 @@ def main():
         # Step 1: Query simulation-service prediction (fails loudly if offline)
         prediction = query_simulation_api(change)
         pred_risk = prediction.get("riskLevel", "UNKNOWN")
-        pred_checks = prediction.get("failedChecks", [])
+        findings = prediction.get("findings", [])
+        pred_checks = sorted(list({
+            f["check"]
+            for f in findings
+            if f.get("severity") in ("MEDIUM", "HIGH", "CRITICAL") and "check" in f
+        }))
 
         # Step 2: Apply change for real in kind cluster and observe actual outcome
         actual = apply_change_for_real(sc)

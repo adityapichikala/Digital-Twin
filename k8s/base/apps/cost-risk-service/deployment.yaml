@@ -55,7 +55,10 @@ spec:
             - name: SERVICES_PROMETHEUS_URL
               value: "http://kube-prometheus-stack-prometheus.monitoring.svc:9090"
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://postgres.twindigital.svc.cluster.local:5432/twindigital"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: jdbc_url
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:

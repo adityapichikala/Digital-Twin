@@ -29,12 +29,12 @@ CREATE TABLE IF NOT EXISTS td_revoked_tokens (
 
 CREATE INDEX idx_revoked_tokens_expires ON td_revoked_tokens(expires_at);
 
--- Seed admin user (password: Admin@1234 — bcrypt 12 rounds)
+-- Seed admin user (password: AdminPassword123! — bcrypt 12 rounds)
 -- CHANGE this password immediately after first login.
 INSERT INTO td_users (username, email, password, role)
 VALUES (
     'admin',
     'admin@twindigital.local',
-    '$2a$12$qEoEkH3LqHZV9t1t5nLnBOqJK9VHJ/LmPf6k4N7vX8z3K.uW0D1Wi',
+    '$2a$12$zkP8NSJEHu2gU2MihkYvUeLin7.BOduGu2oHn1E4sUSJ4UBG6TQKy',
     'ADMIN'
 ) ON CONFLICT DO NOTHING;

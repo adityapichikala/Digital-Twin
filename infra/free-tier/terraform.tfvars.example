@@ -1,0 +1,23 @@
+# AWS Region (ap-south-1 Mumbai, us-east-1 N. Virginia, etc.)
+aws_region = "ap-south-1"
+
+# Environment Identifier
+environment = "dev"
+project_name = "twindigital"
+
+# VPC CIDR Blocks
+vpc_cidr           = "10.0.0.0/16"
+public_subnet_cidr = "10.0.1.0/24"
+
+# EC2 Instance Type (t2.micro is 100% AWS Free Tier eligible: 750 hours/month)
+instance_type = "t2.micro"
+
+# Name of your pre-existing AWS Key Pair (e.g., "my-keypair")
+# Leave empty if you connect via EC2 Instance Connect or Session Manager
+key_name = ""
+
+# Restrict SSH access to your specific public IP (e.g., "203.0.113.25/32")
+allowed_ssh_cidr = "0.0.0.0/0"
+
+# Root volume size in GB (Free Tier includes up to 30 GB EBS gp3 storage)
+root_volume_size = 25

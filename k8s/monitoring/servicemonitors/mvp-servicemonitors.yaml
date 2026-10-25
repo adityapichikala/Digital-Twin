@@ -1,0 +1,91 @@
+# ==============================================================================
+# Prometheus ServiceMonitors for TwinDigital MVP
+# Scrapes:
+#   1. cluster-sync-service (:8082/actuator/prometheus)
+#   2. simulation-service (:8084/actuator/prometheus)
+#   3. gateway (:3000/metrics)
+# ==============================================================================
+
+# ── 1. Cluster Sync ServiceMonitor ────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cluster-sync-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cluster-sync
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-sync
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      metricRelabelings:
+        # Retain JVM, HTTP server request, and system metrics
+        - sourceLabels: [__name__]
+          regex: "(jvm_.*|http_server_requests_.*|process_cpu_.*|system_cpu_.*)"
+          action: keep
+
+---
+# ── 2. Simulation ServiceMonitor ──────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: simulation-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: simulation
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: simulation
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "(jvm_.*|http_server_requests_.*|process_cpu_.*|system_cpu_.*)"
+          action: keep
+
+---
+# ── 3. Gateway ServiceMonitor ─────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gateway-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: twindigital
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - twindigital
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "(gateway_http_.*|nodejs_.*|process_.*)"
+          action: keep

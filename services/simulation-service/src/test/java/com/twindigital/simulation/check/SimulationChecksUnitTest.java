@@ -248,4 +248,24 @@ class SimulationChecksUnitTest {
         assertThat(findings).anyMatch(f -> f.getSeverity() == FindingSeverity.CRITICAL &&
                 f.getExplanation().contains("invalid Kubernetes name"));
     }
+
+    @Test
+    @DisplayName("ServerDryRun: when no ApiClient is available, should return INFO finding with dry-run skipped")
+    void testServerDryRunNoApiClient() {
+        ChangeSet cs = ChangeSet.builder()
+                .kind(ChangeKind.NEW_DEPLOYMENT)
+                .target("billing-service")
+                .dryRunKubeApi(true)
+                .build();
+
+        SimulationContext ctx = SimulationContext.builder()
+                .changeSet(cs)
+                .build();
+
+        List<SimulationFinding> findings = serverDryRunCheck.evaluate(ctx);
+
+        assertThat(findings).anyMatch(f -> f.getSeverity() == FindingSeverity.INFO &&
+                f.getExplanation().contains("dry-run skipped") &&
+                !f.getExplanation().contains("passed"));
+    }
 }

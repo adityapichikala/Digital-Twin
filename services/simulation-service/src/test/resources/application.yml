@@ -10,10 +10,6 @@ spring:
     show-sql: false
   flyway:
     enabled: false
-  data:
-    redis:
-      host: localhost
-      port: 6379
 
 services:
   topology:

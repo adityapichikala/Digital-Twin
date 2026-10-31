@@ -52,8 +52,8 @@ export function setup() {
   let token = JWT_TOKEN;
   if (!token) {
     const loginPayload = JSON.stringify({
-      username: 'admin',
-      password: 'AdminPassword123!',
+      username: __ENV.ADMIN_USERNAME || 'admin',
+      password: __ENV.ADMIN_PASSWORD || 'AdminPassword123!',
     });
     const loginRes = http.post(`${BASE_URL}/api/auth/login`, loginPayload, {
       headers: { 'Content-Type': 'application/json' },

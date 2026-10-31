@@ -20,6 +20,11 @@ pipeline {
     }
 
     parameters {
+        choice(
+            name: 'DEPLOY_ENV',
+            choices: ['staging', 'prod'],
+            description: 'Target deployment environment'
+        )
         booleanParam(
             name: 'ENFORCE_SECURITY_GATES',
             defaultValue: true,
@@ -34,6 +39,7 @@ pipeline {
         IMAGE_REPO                = 'twindigital'
         GIT_SHORT_SHA             = ''
         CVSS_THRESHOLD            = '7.0'
+        K8S_NAMESPACE             = 'twindigital'
     }
 
     options {
@@ -226,17 +232,21 @@ pipeline {
         // ──────────────────────────────────────────────────────────────────────
         stage('Kubernetes Deployment') {
             steps {
-                echo "Executing zero-downtime rolling update in twindigital namespace..."
-                withKubeConfig([credentialsId: env.KUBECONFIG_CREDENTIALS_ID]) {
-                    sh """
-                        kubectl apply -k k8s/mvp
+                script {
+                    def targetEnv = params.DEPLOY_ENV ?: 'staging'
+                    echo "Executing zero-downtime rolling update for environment: ${targetEnv} in namespace '${env.K8S_NAMESPACE}'..."
+                    withKubeConfig([credentialsId: env.KUBECONFIG_CREDENTIALS_ID]) {
+                        // Deploy staging and prod to namespace twindigital via kustomize overlay
+                        // Avoid -n flag conflict by omitting -n on kubectl apply -k
+                        sh """
+                            kubectl apply -k k8s/overlays/${targetEnv}
 
-                        # Verify zero-downtime rollout status
-                        kubectl rollout status deployment/cluster-sync -n twindigital --timeout=60s
-                        kubectl rollout status deployment/simulation -n twindigital --timeout=60s
-                        kubectl rollout status deployment/gateway -n twindigital --timeout=60s
-                        kubectl rollout status deployment/frontend -n twindigital --timeout=60s
-                    """
+                            # Verify zero-downtime rollout status across deployed microservices
+                            for dep in gateway auth-service cluster-sync-service topology-service simulation-service cost-risk-service frontend; do
+                                kubectl rollout status deployment/\$dep -n ${env.K8S_NAMESPACE} --timeout=180s
+                            done
+                        """
+                    }
                 }
             }
         }

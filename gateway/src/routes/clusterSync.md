@@ -33,7 +33,7 @@ sequenceDiagram
 ## 2. Core Implementation Details
 
 ### Source Code
-[`gateway/src/routes/clusterSync.js`](file:///c:/Users/adity/OneDrive/Desktop/cloudca/gateway/src/routes/clusterSync.js):
+[`clusterSync.js`](./clusterSync.js):
 
 ```javascript
 'use strict';
@@ -111,7 +111,7 @@ If `cluster-sync-service` is unreachable, restarting, or experiencing network pa
 
 ## 4. Gateway Integration & Security Constraints
 
-In [`gateway/src/index.js`](file:///c:/Users/adity/OneDrive/Desktop/cloudca/gateway/src/index.js), this route is mounted with security middleware:
+In [`index.js`](../index.js), this route is mounted with security middleware:
 
 ```javascript
 // Mounted at /api/v1/cluster
@@ -126,7 +126,7 @@ app.use('/api/v1/cluster', requireRole('VIEWER', 'ADMIN'), clusterSyncRoutes);
 | **Authentication** | Bearer JWT required in `Authorization` header. |
 | **Authorization (RBAC)** | `VIEWER` and `ADMIN` roles are authorized. Unauthenticated requests receive `401 Unauthorized`. |
 | **Rate Limiting** | Protected by Redis sliding-window user rate limiter (with fallback to in-memory store if Redis is offline). |
-| **Network Policy** | Pod network traffic is governed by [`gateway-netpol.yaml`](file:///c:/Users/adity/OneDrive/Desktop/cloudca/k8s/base/network-policies/gateway-netpol.yaml) allowing TCP 8082 egress to `cluster-sync-service`. |
+| **Network Policy** | Pod network traffic is governed by [`gateway-netpol.yaml`](../../../../k8s/base/network-policies/gateway-netpol.yaml) allowing TCP 8082 egress to `cluster-sync-service`. |
 
 ---
 
@@ -210,4 +210,4 @@ curl -i -X GET http://localhost:8080/api/v1/cluster/status \
 cd gateway
 npm test
 ```
-All gateway proxying, header propagation, and error handlers are tested and verified in [`gateway/src/__tests__/gateway.test.js`](file:///c:/Users/adity/OneDrive/Desktop/cloudca/gateway/src/__tests__/gateway.test.js).
+All gateway proxying, header propagation, and error handlers are tested and verified in [`../__tests__/gateway.test.js`](../__tests__/gateway.test.js).

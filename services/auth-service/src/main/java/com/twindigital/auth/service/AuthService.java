@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -156,9 +157,10 @@ public class AuthService {
     @Transactional
     public void logout(String token) {
         String jti = jwtTokenProvider.extractJti(token);
-        OffsetDateTime expiresAt = jwtTokenProvider.extractExpiration(token)
-                .toInstant()
-                .atOffset(java.time.ZoneOffset.UTC);
+        Date expirationDate = jwtTokenProvider.extractExpiration(token);
+        OffsetDateTime expiresAt = expirationDate != null
+                ? expirationDate.toInstant().atOffset(java.time.ZoneOffset.UTC)
+                : OffsetDateTime.now(java.time.ZoneOffset.UTC).plusHours(1);
 
         RevokedToken revoked = RevokedToken.builder()
                 .jti(jti)
@@ -166,9 +168,31 @@ public class AuthService {
                 .build();
         revokedTokenRepository.save(revoked);
         log.info("Token revoked: jti={}", jti);
+
+        if (jti != null && expirationDate != null) {
+            long remainingMillis = expirationDate.getTime() - System.currentTimeMillis();
+            if (remainingMillis > 0) {
+                try {
+                    if (redisTemplate != null) {
+                        redisTemplate.opsForValue().set("revoked:" + jti, "true", Duration.ofMillis(remainingMillis));
+                        log.info("Token jti={} written to Redis blacklist with TTL={}ms", jti, remainingMillis);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to write revoked token to Redis (falling back gracefully): {}", e.getMessage());
+                }
+            }
+        }
     }
 
     public boolean isTokenRevoked(String jti) {
+        if (jti == null) return false;
+        try {
+            if (redisTemplate != null && Boolean.TRUE.equals(redisTemplate.hasKey("revoked:" + jti))) {
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("Redis check failed for revoked token, falling back to database: {}", e.getMessage());
+        }
         return revokedTokenRepository.existsByJti(jti);
     }
 

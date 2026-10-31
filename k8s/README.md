@@ -38,7 +38,7 @@ k8s/
 │   │   │   ├── deployment.yaml           # IRSA ServiceAccount with Cost Explorer IAM
 │   │   │   ├── service.yaml
 │   │   │   └── kustomization.yaml
-│   │   └── frontend/                     # React / Vite Nginx SPA (Port 80)
+│   │   └── frontend/                     # React / Vite Nginx SPA (Port 8080)
 │   │       ├── deployment.yaml
 │   │       ├── service.yaml
 │   │       └── kustomization.yaml

@@ -67,11 +67,24 @@ spec:
       ports:
         - protocol: TCP
           port: 8085
-    # 2. Egress to Redis for rate-limiting
+    # 2. Egress to Redis for rate-limiting and token revocation (in-cluster pod and ElastiCache in private subnets)
     - to:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: redis
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
       ports:
         - protocol: TCP
           port: 6379
+    # 3. Egress to PostgreSQL on RDS in the private subnets
+    - to:
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
+      ports:
+        - protocol: TCP
+          port: 5432

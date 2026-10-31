@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 const { sendError } = require('../utils/errorResponse');
 
 const router = Router();
@@ -10,6 +10,7 @@ const target = process.env.SIMULATION_SERVICE_URL || 'http://localhost:8084';
 const proxy = createProxyMiddleware({
   target,
   changeOrigin: true,
+  pathRewrite: (path, req) => req.originalUrl || path,
   on: {
     proxyReq: (proxyReq, req) => {
       if (req.id) {
@@ -19,6 +20,7 @@ const proxy = createProxyMiddleware({
         proxyReq.setHeader('X-User-Id', req.user.sub || '');
         proxyReq.setHeader('X-User-Role', req.user.role || '');
       }
+      fixRequestBody(proxyReq, req);
     },
     error: (err, req, res) => {
       sendError(res, 502, 'Bad Gateway', `simulation-service unavailable: ${err.message}`, req);

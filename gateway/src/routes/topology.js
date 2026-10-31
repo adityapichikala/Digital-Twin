@@ -10,6 +10,7 @@ const target = process.env.TOPOLOGY_SERVICE_URL || 'http://localhost:8083';
 const proxy = createProxyMiddleware({
   target,
   changeOrigin: true,
+  pathRewrite: (path, req) => req.originalUrl || path,
   on: {
     proxyReq: (proxyReq, req) => {
       if (req.id) {

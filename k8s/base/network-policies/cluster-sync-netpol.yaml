@@ -43,3 +43,15 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    # 3. Egress to Redis (in-cluster pod or ElastiCache in private subnets)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+        - ipBlock:
+            cidr: 10.0.10.0/23
+        - ipBlock:
+            cidr: 10.0.12.0/23
+      ports:
+        - protocol: TCP
+          port: 6379

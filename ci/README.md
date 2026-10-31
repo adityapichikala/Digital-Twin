@@ -182,9 +182,9 @@ Navigate to **Manage Jenkins $\rightarrow$ Credentials $\rightarrow$ System $\ri
 - **Non-blocking Advisory Rationale**: ZAP baseline scans flag passive informational and header warnings. The scan runs with `|| true` to ensure HTML and JSON reports are generated and published without halting delivery pipelines.
 
 ### Stage 8: Deploy to EKS with Automatic Rollback
-- Applies the selected Kustomize overlay:
+- Applies the selected Kustomize overlay (omitting `--namespace` flag to avoid namespace conflict, as the `twindigital` namespace is declared within the manifests):
   ```bash
-  kubectl apply -k ${OVERLAY_DIR} --namespace=${K8S_NAMESPACE}
+  kubectl apply -k ${OVERLAY_DIR}
   ```
 - Updates deployment images:
   ```bash

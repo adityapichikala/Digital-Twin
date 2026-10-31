@@ -19,6 +19,12 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import com.twindigital.auth.entity.RevokedToken;
+
+import java.time.Duration;
+import java.util.Date;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -197,5 +203,64 @@ class AuthServiceTest {
 
         Claims result = authService.validateToken("valid_tok");
         assertThat(result.getSubject()).isEqualTo("alice");
+    }
+
+    @Test
+    @DisplayName("logout saves revoked token in repository and writes revoked:jti to Redis with TTL")
+    void logoutWritesToRedisAndRepository() {
+        String token = "tok_to_logout";
+        String jti = "jti_logout_999";
+        Date futureExpiration = new Date(System.currentTimeMillis() + 600000L);
+
+        when(jwtTokenProvider.extractJti(token)).thenReturn(jti);
+        when(jwtTokenProvider.extractExpiration(token)).thenReturn(futureExpiration);
+
+        StringRedisTemplate mockRedis = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> ops = mock(ValueOperations.class);
+        when(mockRedis.opsForValue()).thenReturn(ops);
+        ReflectionTestUtils.setField(authService, "redisTemplate", mockRedis);
+
+        authService.logout(token);
+
+        verify(revokedTokenRepository).save(any(RevokedToken.class));
+        verify(ops).set(eq("revoked:" + jti), eq("true"), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("logout falls back gracefully when Redis throws an exception")
+    void logoutFallsBackGracefullyOnRedisFailure() {
+        String token = "tok_to_logout_err";
+        String jti = "jti_err_888";
+        Date futureExpiration = new Date(System.currentTimeMillis() + 600000L);
+
+        when(jwtTokenProvider.extractJti(token)).thenReturn(jti);
+        when(jwtTokenProvider.extractExpiration(token)).thenReturn(futureExpiration);
+
+        StringRedisTemplate mockRedis = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> ops = mock(ValueOperations.class);
+        when(mockRedis.opsForValue()).thenReturn(ops);
+        doThrow(new RuntimeException("Redis connection refused"))
+                .when(ops).set(eq("revoked:" + jti), eq("true"), any(Duration.class));
+        ReflectionTestUtils.setField(authService, "redisTemplate", mockRedis);
+
+        assertThatCode(() -> authService.logout(token)).doesNotThrowAnyException();
+        verify(revokedTokenRepository).save(any(RevokedToken.class));
+    }
+
+    @Test
+    @DisplayName("logout works normally when redisTemplate is null")
+    void logoutWorksWhenRedisTemplateNull() {
+        String token = "tok_null_redis";
+        String jti = "jti_null_777";
+        Date futureExpiration = new Date(System.currentTimeMillis() + 600000L);
+
+        when(jwtTokenProvider.extractJti(token)).thenReturn(jti);
+        when(jwtTokenProvider.extractExpiration(token)).thenReturn(futureExpiration);
+        ReflectionTestUtils.setField(authService, "redisTemplate", null);
+
+        assertThatCode(() -> authService.logout(token)).doesNotThrowAnyException();
+        verify(revokedTokenRepository).save(any(RevokedToken.class));
     }
 }

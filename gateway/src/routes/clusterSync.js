@@ -10,7 +10,11 @@ const target = process.env.CLUSTER_SYNC_SERVICE_URL || 'http://localhost:8082';
 const proxy = createProxyMiddleware({
   target,
   changeOrigin: true,
-  pathRewrite: { '^/api/v1/cluster': '/api/v1/sync' },
+  pathRewrite: (path, req) => {
+    return (req.originalUrl || path)
+      .replace(/^\/api\/v1\/cluster/, '/api/v1/sync')
+      .replace(/^\/api\/cluster/, '/api/sync');
+  },
   on: {
     proxyReq: (proxyReq, req) => {
       if (req.id) {

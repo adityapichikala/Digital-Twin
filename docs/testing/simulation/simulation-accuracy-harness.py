@@ -750,6 +750,7 @@ def main():
         prediction = query_simulation_api(change)
         pred_risk = prediction.get("riskLevel", "UNKNOWN")
         findings = prediction.get("findings", [])
+        # Extract predicted checks from distinct check values with severity >= MEDIUM (replaces nonexistent failedChecks)
         pred_checks = sorted(list({
             f["check"]
             for f in findings

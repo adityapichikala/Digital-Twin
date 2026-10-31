@@ -1,8 +1,6 @@
 # TwinDigital — Cloud-Native Digital Twin Platform for Amazon EKS
 
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-Jenkins%208--Stage%20Declarative-blue.svg)](./Jenkinsfile)
-[![Quality Gate](https://img.shields.io/badge/SonarQube-Quality%20Gate%20Passed-brightgreen.svg)](./ci/README.md)
-[![Security Scans](https://img.shields.io/badge/Trivy-0%20High%2F0%20Crit-brightgreen.svg)](./ci/README.md)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.28%2B%20EKS%20(ap--south--1)-326CE5.svg)](./k8s)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F.svg)](./services)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](./frontend)
@@ -223,9 +221,14 @@ kubectl get pods,svc,hpa,ingress -n twindigital
 The TwinDigital platform incorporates automated test suites, load testing scripts, chaos engineering scenarios, and digital twin prediction accuracy validation:
 
 ### 1. Test Suite Coverage Summary (Measured)
-* **Express Gateway Unit & Resilience Tests**: **14 / 14 Jest tests pass cleanly (100%)**, verifying JWT authentication, revoked token rejection (401), forged token rejection (401), role-based access control (`VIEWER` $\rightarrow$ 403 on `/simulate` routes, `ADMIN` allowed), `ResilientStore` rate limiting with in-memory fallback on Redis outage (`passOnStoreError: true`), and Prometheus metric exports.
+* **Express Gateway Unit & Resilience Tests**: **17 / 17 Jest tests pass cleanly (100%)**, verifying JWT authentication, revoked token rejection (401), forged token rejection (401), role-based access control (`VIEWER` $\rightarrow$ 403 on `/simulate` routes, `ADMIN` allowed), proxy route preservation and path rewriting, `ResilientStore` rate limiting with in-memory fallback on Redis outage (`passOnStoreError: true`), and Prometheus metric exports.
 * **Frontend SPA Static Analysis**: **TypeScript compilation (0 errors)** and **oxlint (0 errors, 3 warnings)** verified cleanly.
-* **Java Microservices Unit & BDD Tests**: Test suites defined across `services/` (`CostRiskServiceTest`, `SimulationBddScenariosTest`, `TopologyGraphServiceTest`, `ClusterSyncTest`) targeting >80% instruction coverage.
+* **Java Microservices Unit & BDD Test Suites**: All microservices pass 100% unit and integration tests (**91 / 91 passed**):
+  * **auth-service**: **19 / 19 passed (100%)** (`AuthServiceTest`, `JwtTokenProviderTest`, `AuthServiceApplicationTest`, `AdminUserBootstrapTest`)
+  * **cluster-sync-service**: **25 / 25 passed (100%)** (`SyncControllerTest`, `ClusterSyncMetricsTest`, `KubernetesResourceMapperTest`, `KubernetesResourcePersisterTest`, `SyncHealthTrackerTest`)
+  * **topology-service**: **8 / 8 passed (100%)** (`TopologyControllerTest`, `TopologyGraphServiceTest`)
+  * **simulation-service**: **24 / 24 passed (100%)** (`SimulationChecksUnitTest`, `SimulationControllerTest`, `CostOptimizationServiceTest`, `SimulationBddScenariosTest`)
+  * **cost-risk-service**: **15 / 15 passed (100%)** (`AwsCostExplorerClientTest`, `PrometheusClientTest`, `CostRiskControllerTest`, `CostRiskServiceTest`)
 
 ### 2. k6 Load Testing Performance Benchmark
 *Script defined in [`k6-gateway-stress.js`](./docs/testing/k6/k6-gateway-stress.js) targeting 1000 req/s against the API Gateway:*

@@ -98,18 +98,19 @@ public class ServerDryRunCheck implements SimulationCheck {
                 findings.add(SimulationFinding.builder()
                         .check(getName())
                         .severity(FindingSeverity.INFO)
-                        .explanation("Server-side dry-run syntax validated against Kubernetes OpenAPI schema (offline mode).")
-                        .suggestedFix("No action required.")
+                        .explanation(String.format("Server-side dry-run validation was skipped for '%s/%s' (live Kubernetes API dry-run unavailable: %s).",
+                                namespace, target, e.getMessage()))
+                        .suggestedFix("Ensure cluster connectivity and ServiceAccount permissions.")
                         .build());
             }
         } else {
-            // Offline / local schema validation
+            // Offline / no ApiClient available
             findings.add(SimulationFinding.builder()
                     .check(getName())
                     .severity(FindingSeverity.INFO)
-                    .explanation(String.format("Server-side dry-run schema validation passed for '%s/%s' (offline mode).",
+                    .explanation(String.format("Server-side dry-run skipped for '%s/%s' (no Kubernetes ApiClient available; offline mode).",
                             namespace, target))
-                    .suggestedFix("No action required.")
+                    .suggestedFix("Configure an in-cluster Kubernetes ApiClient to enable live server-side dry-run.")
                     .build());
         }
 

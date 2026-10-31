@@ -34,6 +34,13 @@ jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:3600000}
 
+twindigital:
+  bootstrap:
+    admin:
+      username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+      email: ${BOOTSTRAP_ADMIN_EMAIL:admin@twindigital.local}
+
 management:
   endpoints:
     web:
@@ -43,6 +50,8 @@ management:
     health:
       show-details: always
   metrics:
+    tags:
+      application: ${spring.application.name}
     export:
       prometheus:
         enabled: true
@@ -54,3 +63,14 @@ logging:
   level:
     root: INFO
     com.twindigital: DEBUG
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+twindigital:
+  bootstrap:
+    admin:
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:AdminPassword123!}
+

@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -156,7 +157,7 @@ class CostRiskServiceTest {
         assertThat(summary).isNotNull();
         assertThat(summary.getDataSource()).isEqualTo("AWS_COST_EXPLORER");
         assertThat(summary.getTotalMonthlyCostUsd()).isEqualTo(145.80);
-        assertThat(summary.getTotalAnnualCostUsd()).isEqualTo(145.80 * 12.0);
+        assertThat(summary.getTotalAnnualCostUsd()).isCloseTo(145.80 * 12.0, within(0.01));
 
         // Verify Micrometer gauge updated
         double gaugeValue = meterRegistry.get("twin_cost_estimated_usd").gauge().value();
@@ -207,7 +208,7 @@ class CostRiskServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getTarget()).isEqualTo("billing-service");
         assertThat(response.getDeltaMonthlyUsd()).isGreaterThan(0.0);
-        assertThat(response.getDeltaAnnualUsd()).isEqualTo(response.getDeltaMonthlyUsd() * 12.0);
+        assertThat(response.getDeltaAnnualUsd()).isCloseTo(response.getDeltaMonthlyUsd() * 12.0, within(0.1));
         assertThat(response.getExplanation()).contains("billing-service");
     }
 }

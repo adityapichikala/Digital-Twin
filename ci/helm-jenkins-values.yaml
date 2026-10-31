@@ -26,5 +26,6 @@ controller:
     - "kubernetes:4240.v9a_d87d461533"
     - "kubernetes-cli:1.12.1"
     - "htmlpublisher:1.32"
+    - "ansicolor:1.0.5"
   serviceType: ClusterIP
   servicePort: 8080

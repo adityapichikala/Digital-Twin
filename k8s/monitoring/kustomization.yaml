@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: monitoring
 
 resources:
-  - servicemonitors/mvp-servicemonitors.yaml
+  - servicemonitors/gateway-servicemonitor.yaml
+  - servicemonitors/spring-boot-servicemonitors.yaml
   - alerts/twindigital-alerts.yaml
   - dashboards/twindigital-overview-dashboard.yaml

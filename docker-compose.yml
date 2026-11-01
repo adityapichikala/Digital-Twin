@@ -54,6 +54,63 @@ services:
       retries: 5
     restart: unless-stopped
 
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: twindigital-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/twindigital
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-twindigital}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-twindigital_secure_pass}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_BASELINE_VERSION: "0"
+      SERVER_PORT: 8081
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_key_32_characters_minimum}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-AdminPassword123!}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@twindigital.local}
+      SPRING_DATA_REDIS_URL: redis://:${REDIS_PASSWORD:-twindigital_redis_pass}@redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cluster-sync:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  topology-service:
+    build:
+      context: ./services/topology-service
+      dockerfile: Dockerfile
+    container_name: twindigital-topology-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/twindigital
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-twindigital}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-twindigital_secure_pass}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_BASELINE_VERSION: "0"
+      SERVER_PORT: 8083
+    depends_on:
+      cluster-sync:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   simulation:
     build:
       context: ./services/simulation-service
@@ -65,15 +122,49 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/twindigital
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-twindigital}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-twindigital_secure_pass}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_BASELINE_VERSION: "0"
       CLUSTER_SYNC_SERVICE_URL: http://cluster-sync:8082
+      TOPOLOGY_SERVICE_URL: http://topology-service:8083
+      COST_RISK_SERVICE_URL: http://cost-risk-service:8085
       SERVER_PORT: 8084
     depends_on:
       postgres:
         condition: service_healthy
       cluster-sync:
         condition: service_healthy
+      topology-service:
+        condition: service_healthy
+      cost-risk-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  cost-risk-service:
+    build:
+      context: ./services/cost-risk-service
+      dockerfile: Dockerfile
+    container_name: twindigital-cost-risk-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/twindigital
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-twindigital}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-twindigital_secure_pass}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_BASELINE_VERSION: "0"
+      SERVER_PORT: 8085
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://localhost:9090}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+    depends_on:
+      cluster-sync:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8085/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -90,17 +181,26 @@ services:
       NODE_ENV: production
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_key_32_characters_minimum}
+      AUTH_SERVICE_URL: http://auth-service:8081
       CLUSTER_SYNC_SERVICE_URL: http://cluster-sync:8082
+      TOPOLOGY_SERVICE_URL: http://topology-service:8083
+      COST_RISK_SERVICE_URL: http://cost-risk-service:8085
       SIMULATION_SERVICE_URL: http://simulation:8084
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       REDIS_URL: redis://:${REDIS_PASSWORD:-twindigital_redis_pass}@redis:6379
     depends_on:
+      auth-service:
+        condition: service_healthy
       redis:
         condition: service_healthy
       cluster-sync:
         condition: service_healthy
       simulation:
+        condition: service_healthy
+      topology-service:
+        condition: service_healthy
+      cost-risk-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
@@ -115,12 +215,12 @@ services:
       dockerfile: Dockerfile
     container_name: twindigital-frontend
     ports:
-      - "8080:8080"
+      - "8088:8080"
     depends_on:
       gateway:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

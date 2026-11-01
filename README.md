@@ -1,4 +1,4 @@
-# TwinDigital — Cloud-Native Digital Twin Platform for Amazon EKS
+# TwinDigital — Kubernetes Operations MVP
 
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-Jenkins%208--Stage%20Declarative-blue.svg)](./Jenkinsfile)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.28%2B%20EKS%20(ap--south--1)-326CE5.svg)](./k8s)
@@ -7,13 +7,32 @@
 [![Registry](https://img.shields.io/badge/Registry-Amazon%20ECR-FF9900.svg)](./ci/REGISTRY_RECOMMENDATION.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-TwinDigital creates a high-fidelity **Digital Twin** of live Amazon Elastic Kubernetes Service (EKS) clusters in region `ap-south-1`. By streaming real-time control plane events via List+Watch informers and Prometheus telemetry into a synchronized graph model, TwinDigital allows platform engineers and SREs to **simulate "what-if" operational changes** (scaling workloads, altering resource requests/limits, removing worker nodes) and view **predictive risk scores, blast radius visualizations, and financial cost deltas** *before* touching production.
+TwinDigital is an MVP for exploring Kubernetes topology and proposed workload changes through a web UI, API gateway, and Java services. Its local Compose profile includes a seeded demo topology. Kubernetes, Prometheus, and AWS integrations are implemented in the codebase, but their live behavior has not been benchmarked in this project run.
+
+## Status at a glance
+
+- **[Verified — local run on 2026-11-01]** `docker compose up --build -d` brought all nine Compose services to healthy. Login through the gateway succeeded as `ADMIN`; the authenticated topology endpoint returned 18 nodes and 19 edges from the built-in demo graph.
+- **[Verified — automated tests]** Gateway Jest: 17/17 passed. Java service suites: 91/91 recorded (auth 19, cluster sync 25, topology 8, simulation 24, cost-risk 15); see [test results](./docs/testing/RESULTS_TEMPLATE.md).
+- **[Verified — local checks on 2026-11-01]** Frontend lint completed with 3 warnings and no errors; TypeScript typecheck and production build passed.
+- **[Implemented]** Login and role checks, Kubernetes List+Watch integration, topology and blast-radius traversal, simulation checks, cost-risk APIs, and Kubernetes deployment/monitoring manifests.
+- **[Planned — not yet run]** Live-cluster latency measurement, load testing, chaos testing, and simulation accuracy validation. Results remain marked “not yet run” in the [results template](./docs/testing/RESULTS_TEMPLATE.md).
+
+## MVP scope
+
+`docker-compose.yml` starts PostgreSQL, Redis, cluster-sync, auth-service, topology-service, simulation, cost-risk-service, the gateway, and the frontend. The UI is served at `http://localhost:8088`; the gateway is at `http://localhost:3000`.
+
+- **Storage:** PostgreSQL and Redis.
+- **Backend:** auth-service, cluster-sync, topology-service, simulation-service, cost-risk-service, and the Express gateway.
+- **Frontend:** React UI served by the frontend container.
+- **Local data sources:** seeded topology when no kubeconfig is supplied; Prometheus and AWS billing are external and are not started by Compose.
+
+Without `KUBECONFIG_BASE64`, cluster-sync has no Kubernetes cluster to read and topology serves its seeded demo graph. Compose does not start Prometheus or provision AWS credentials, so live utilization and AWS billing data are not part of the verified local flow. The load, chaos, and simulation-accuracy checks have not been run.
 
 ---
 
-## 1. High-Level Architecture
+## 1. Architecture
 
-The platform follows a decoupled, resilient microservices architecture orchestrated on Amazon EKS with strict Pod Security Standards, namespace-scoped RBAC, and default-deny NetworkPolicies:
+The diagram shows the service layout and intended external integrations. The local MVP scope is listed above; live EKS, Prometheus, and AWS service connections have not been verified here.
 
 ```mermaid
 flowchart TD
@@ -72,38 +91,38 @@ flowchart TD
 
 ---
 
-## 2. Key Features & Capabilities
+## 2. Capabilities and status
 
-### 1. Sub-Second Real-Time Cluster Synchronization
-- **List + Watch Informers**: Instead of fixed-interval polling, [`cluster-sync-service`](./services/cluster-sync-service) maintains streaming HTTP `Watch` connections with the Kubernetes API for Nodes, Pods, Services, Deployments, HPAs, and PDBs using Kubernetes Java Client Informers.
-- **Instantaneous Delta Processing**: Deleting a pod or applying a deployment updates PostgreSQL and the UI in under 500ms.
-- **Fail-Safe Staleness Tracking**: Heartbeats track API probe health; if the connection drops, status transitions to `STALE` with measured lag seconds, reconnecting with exponential backoff.
+### Cluster synchronization
+- **[Implemented]** [`cluster-sync-service`](./services/cluster-sync-service) uses Kubernetes List+Watch informers and persists supported cluster resources to PostgreSQL; it includes sync health and reconnect logic.
+- **[Verified — local run on 2026-11-01]** Compose started without a kubeconfig. This verifies service startup, not synchronization against a live cluster or event latency.
+- **[Planned]** Measure update and reconnect latency against a live Kubernetes cluster.
 
-### 2. Directed Topology DAG & In-Memory BFS Blast Radius Engine
-- **Hierarchical Layout**: [`topology-service`](./services/topology-service) constructs a directed graph (`Node` $\rightarrow$ `Pod` $\rightarrow$ `Deployment` $\rightarrow$ `Service`), inferring service-to-service dependencies via `twindigital.io/depends-on` annotations and Ingress routes.
-- **In-Memory BFS Blast Radius Analysis**: Traverses upstream and downstream dependency trees using an in-memory Breadth-First Search (BFS) graph algorithm to compute the exact blast radius of a failing or modifying workload.
-- **5-Second Polling Refresh**: The React 19 frontend updates the topology and cluster health every 5 seconds via REST polling (eliminating fragile WebSocket connection state).
+### Topology and blast-radius view
+- **[Implemented]** [`topology-service`](./services/topology-service) builds topology from stored cluster resources and traverses dependency edges with BFS. The frontend polls the API every five seconds.
+- **[Verified — local run on 2026-11-01]** The gateway returned the seeded graph with 18 nodes and 19 edges when no cluster data was configured.
+- **[Planned]** Validate graph completeness and blast-radius results against a live cluster.
 
-### 3. Digital Twin "What-If" Simulation Engine
-- **Deterministic Check Pipeline**: [`simulation-service`](./services/simulation-service) tests proposed change sets submitted via `/simulate` against real cluster state without arbitrary scoring:
+### What-if simulation
+- **[Implemented]** [`simulation-service`](./services/simulation-service) contains checks for scheduling fit, resource limits, node removal/PDB impact, HPA impact, and blast radius. Outcomes can include cost estimates and audit records.
+- **[Planned]** Compare predicted outcomes with observed Kubernetes scheduling and disruption behavior. The accuracy harness is marked “not yet run.”
+
+Implemented checks:
   1. **SchedulingFit**: Bin-packing simulation verifying that all pods fit on worker nodes given allocatable capacity minus existing requests.
   2. **LimitSanity**: Rejects invalid configurations (`limit < request`, `request > largest node`, missing memory limits, extreme ratios).
   3. **NodeRemovalImpact**: Validates whether displaced pods can be rescheduled elsewhere while respecting PodDisruptionBudgets (PDB).
   4. **HpaImpact**: Assesses whether proposed resource changes make HPA min/max bounds feasible on current cluster headroom.
   5. **BlastRadius**: Queries the topology engine's BFS model to list all dependent services impacted by the proposed change.
-- **Cost Delta Integration**: Directly calls `cost-risk-service` (`POST /api/v1/cost/estimate-change`) to attach projected monthly cost deltas to each simulation outcome.
-- **Immutable Audit Logging**: Every simulation run records inputs, outcomes, and risk levels into the `simulation_audit` PostgreSQL table.
+- **[Implemented] Cost delta integration**: Calls `cost-risk-service` to attach estimated monthly cost deltas to simulation outcomes.
+- **[Implemented] Audit logging**: Stores simulation inputs and outcomes in PostgreSQL.
 
-### 4. Combined Cost & Risk Service (7-Day p95 PromQL + AWS Cost Explorer)
-- **Actual Utilization vs. Requests**: [`cost-risk-service`](./services/cost-risk-service) queries Prometheus for true 7-day 95th-percentile container CPU usage (`quantile_over_time`) and memory working sets, flagging over-provisioned workloads.
-- **Right-Sizing Recommendations**: Suggests optimized requests with built-in safety buffers (+25% on CPU, +30% on RAM).
-- **AWS Cost Explorer Caching**: Direct integration with the AWS Cost Explorer API in region `ap-south-1` via IRSA, utilizing an in-memory Caffeine cache (6-hour TTL) to prevent billed API request charges.
-- **Micrometer Gauges**: Exports `twin_cost_estimated_usd` and `twin_overprovisioned_pods` to Prometheus.
+### Cost and risk analysis
+- **[Implemented]** [`cost-risk-service`](./services/cost-risk-service) includes Prometheus utilization queries, right-sizing recommendations, AWS Cost Explorer integration, pricing data, and Micrometer metrics.
+- **[Planned]** Verify results with configured Prometheus history and AWS credentials. Compose does not provide those external systems.
 
-### 5. Production Kubernetes Security & CIS Hardening
-- **Restricted Pod Security Standard**: All microservices enforce `runAsNonRoot: true`, `runAsUser: 10001`, `readOnlyRootFilesystem: true`, `drop: ["ALL"]` capabilities, and `seccompProfile: RuntimeDefault`.
-- **Default-Deny NetworkPolicies**: Denies all ingress/egress by default; explicit allow rules govern inter-service routing, database access, and Prometheus scraping.
-- **IRSA & External Secrets Operator (ESO)**: Zero static credentials in Kubernetes; DB passwords and JWT keys synchronize automatically from AWS Secrets Manager with KMS encryption.
+### Kubernetes deployment controls
+- **[Implemented in manifests]** The Kubernetes configuration includes pod security contexts, RBAC, NetworkPolicies, IRSA, and External Secrets resources.
+- **[Planned]** Verify enforcement and rollout behavior in a deployed cluster. A rendered manifest is not evidence of a live security or availability test.
 
 ---
 
@@ -167,25 +186,37 @@ The project implements a hardened, 8-stage declarative Jenkins pipeline ([`Jenki
 ## 5. Quick Start
 
 ### Option A: Local Development (Docker Compose)
-Ensure Docker and Docker Compose are installed:
+Ensure Docker Desktop (or Docker Engine) and Docker Compose are installed and running:
 
 ```bash
-# 1. Clone repository & configure environment
+# 1. Configure local environment values
 cp .env.example .env
 
-# 2. Start PostgreSQL and Redis backing stores
-docker compose up -d postgres redis
+# 2. Build and start the complete local MVP stack
+docker compose up --build -d
 
-# 3. Start all backend microservices and API gateway
-docker compose up -d auth-service cluster-sync-service topology-service \
-                       simulation-service cost-risk-service gateway
-
-# 4. Start the frontend SPA development server
-cd frontend
-npm install
-npm run dev
-# Access UI at http://localhost:5173 (Default login: admin / AdminPassword123!)
+# 3. Wait until each service reports healthy
+docker compose ps
 ```
+
+Compose starts PostgreSQL and Redis first. `cluster-sync` initializes the shared cluster tables; topology, simulation, and cost-risk wait for it to become healthy. The gateway waits for auth and the other APIs. The frontend is served by its container at [http://localhost:8088](http://localhost:8088) (host port 8080 is used by Jenkins in the project’s local environment). The default local admin is `admin` / `AdminPassword123!` unless overridden in `.env`.
+
+Verify login through the gateway and use the returned `accessToken` for the topology request:
+
+```bash
+# Login; copy the accessToken value from the JSON response.
+curl -sS -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"AdminPassword123!"}'
+
+# Replace <accessToken> with that value.
+curl -sS http://localhost:3000/api/v1/topology \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+The cost-risk API accepts `PROMETHEUS_URL` when a Prometheus server is available. Without it, the local stack still starts, but live utilization data requires separately running Prometheus. Use `docker compose logs -f` to inspect service startup and `docker compose down` to stop the stack.
+
+Without `KUBECONFIG_BASE64`, cluster sync cannot connect to a Kubernetes cluster and topology returns the built-in demo graph. Set `KUBECONFIG_BASE64` in `.env` to a base64-encoded kubeconfig to sync a real cluster. This local Compose path is an MVP demo environment; it does not provision EKS, Prometheus, or AWS Cost Explorer credentials.
 
 ### Option B: Deploy to Amazon EKS (Kustomize)
 Ensure `kubectl` is authenticated to your target EKS cluster:
@@ -203,20 +234,7 @@ kubectl get pods,svc,hpa,ingress -n twindigital
 
 ---
 
-## 6. UI Screenshots & Visual Artifacts
-
-| Screen | Description | Preview |
-| :--- | :--- | :---: |
-| **Cluster Topology Canvas** | Interactive ReactFlow directed graph with Dagre layout, color-coded health, and live side-panel telemetry (5s polling). | ![Topology View](./docs/screenshots/topology_preview.png) |
-| **Blast Radius Analyzer** | Selecting any service triggers in-memory BFS traversal highlighting upstream callers and downstream dependencies in amber. | ![Blast Radius](./docs/screenshots/blast_radius_preview.png) |
-| **Simulation Workbench (`/simulate`)** | What-if simulation form evaluating change sets with instant explainable risk scores, cost delta, and audit tracking. | ![Simulation Workbench](./docs/screenshots/simulation_workbench.png) |
-| **Cost & Right-Sizing Dashboard** | PromQL 7-day p95 utilization table, right-sizing recommendations, and AWS Cost Explorer spend breakdown. | ![Cost Dashboard](./docs/screenshots/cost_risk_dashboard.png) |
-
-*(Note: Static screenshots are indexed under [`docs/screenshots/`](./docs/screenshots/) or viewable live via the local dev server).*
-
----
-
-## 7. Comprehensive Test Results & Validation
+## 6. Comprehensive Test Results & Validation
 
 The TwinDigital platform incorporates automated test suites, load testing scripts, chaos engineering scenarios, and digital twin prediction accuracy validation:
 
@@ -245,8 +263,8 @@ The TwinDigital platform incorporates automated test suites, load testing script
 | **Pod CrashLoop** | Failing container entrypoint | Restart count reached $\ge 3$; trigger Alertmanager alert `PodFrequentRestarts` | *not yet run* | **not yet run** |
 | **Worker Node Drain** | Graceful node drain & cordon | Pods evicted respecting PDBs; rescheduled on alternate nodes | *not yet run* | **not yet run** |
 | **Memory Stress Pod** | 256M allocation on 128M limit | Linux cgroup OOM-killed rogue pod; neighbor pods untouched | *not yet run* | **not yet run** |
-| **Service Pod Kill** | Concurrent pod termination | Replacements spawned; passed readiness probes; zero downtime | *not yet run* | **not yet run** |
-| **Redis Outage** | Scaled Redis deployment to 0 | Gateway falls back to in-memory rate limiting; zero 500 errors | *not yet run* (Unit test verified) | **not yet run** |
+| **Service Pod Kill** | Concurrent pod termination | Record replacement readiness, request availability, and recovery time | *not yet run* | **not yet run** |
+| **Redis Outage** | Scaled Redis deployment to 0 | Check whether gateway uses its in-memory rate-limit fallback and record request outcomes | *not yet run* (gateway fallback behavior covered by 17/17 Jest tests) | **not yet run** |
 | **K8s API Isolation** | Blocked sync service API egress | Watch dropped; status transitioned to `STALE`; auto-reconnected | *not yet run* | **not yet run** |
 
 ### 4. Simulation Accuracy Validation
@@ -258,12 +276,12 @@ The TwinDigital platform incorporates automated test suites, load testing script
 
 ---
 
-## 8. Architecture Decision Records (ADRs)
+## 7. Architecture Decision Records (ADRs)
 
 Key architectural decisions are documented under [`docs/adr/`](./docs/adr/):
 
 * **[ADR-001: Terraform vs. AWS CloudFormation](./docs/adr/0001-terraform-vs-cloudformation.md)**: Selected HashiCorp Terraform with S3 remote state and DynamoDB locking for unified multi-provider orchestration and deterministic execution plans.
-* **[ADR-002: Kubernetes Watch/Informers vs. Polling](./docs/adr/0002-kubernetes-watch-informers-vs-polling.md)**: Selected `SharedIndexInformer` (List + Watch) over polling to achieve sub-second event propagation without overloading the EKS control plane.
+* **[ADR-002: Kubernetes Watch/Informers vs. Polling](./docs/adr/0002-kubernetes-watch-informers-vs-polling.md)**: Selected `SharedIndexInformer` (List + Watch) to receive Kubernetes change events without fixed-interval list requests; event latency has not been measured here.
 * **[ADR-003: PostgreSQL vs. NoSQL / Graph Databases](./docs/adr/0003-postgresql-vs-nosql-graph-databases.md)**: Selected PostgreSQL with in-memory BFS graph traversals for full ACID guarantees, fast dependency resolution, and versioned Flyway migrations.
 * **[ADR-004: Amazon ECR vs. Docker Hub](./docs/adr/0004-amazon-ecr-vs-docker-hub.md)**: Selected Amazon ECR over Docker Hub to leverage IAM/IRSA tokenless authentication, eliminate AWS NAT Gateway internet egress fees, and avoid pull rate limits in `ap-south-1`.
 

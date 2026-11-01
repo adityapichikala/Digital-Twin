@@ -20,6 +20,7 @@ k8s/monitoring/
 │   ├── alertmanager-secret.yaml             # AWS SES SMTP credentials secret template
 │   └── alertmanager-config.yaml             # AlertmanagerConfig CRD with SES email routing
 └── dashboards/
+    ├── twindigital-overview-dashboard.yaml  # Combined TwinDigital KPI dashboard ConfigMap
     ├── cluster-overview-dashboard.yaml      # Cluster nodes CPU/RAM, pod status, restarts ConfigMap
     ├── service-metrics-dashboard.yaml       # Gateway & microservices latency (P50/P95/P99), RPS, 5xx error rate
     └── cost-trend-dashboard.yaml            # FinOps metrics: twin_cost_estimated_usd & twin_overprovisioned_pods
@@ -95,12 +96,8 @@ kubectl apply -f k8s/monitoring/alertmanager/alertmanager-config.yaml
 ### Step 5: Deploy ServiceMonitors & Alert Rules
 
 ```bash
-# Apply Gateway and Microservices ServiceMonitors
-kubectl apply -f k8s/monitoring/servicemonitors/gateway-servicemonitor.yaml
-kubectl apply -f k8s/monitoring/servicemonitors/spring-boot-servicemonitors.yaml
-
-# Apply PrometheusRule Alerts
-kubectl apply -f k8s/monitoring/alerts/twindigital-alerts.yaml
+# Apply Gateway and Spring Boot ServiceMonitors, alert rules, and the bundled overview dashboard
+kubectl apply -k k8s/monitoring
 ```
 
 ---

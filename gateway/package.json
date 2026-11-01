@@ -9,8 +9,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --runInBand --forceExit",
-    "lint": "eslint src/**/*.js"
+    "test": "jest --runInBand --forceExit"
   },
   "dependencies": {
     "express": "^4.19.2",

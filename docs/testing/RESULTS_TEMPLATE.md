@@ -18,7 +18,7 @@ This document provides the standard reporting template and evidence tracking log
 | **CHAOS-02: Worker Node Drain** | `kubectl drain <worker-node> --ignore-daemonsets` | Pods gracefully evicted, respecting PDBs; rescheduled on healthy worker node | not yet run | not yet run | not yet run | not yet run | not yet run |
 | **CHAOS-03: Memory Hog (OOM Isolation)** | Spin up memory stress pod exceeding 128Mi cgroup limit (`stress --vm-bytes 256M`) | Linux cgroup OOM-killer terminates stress container without freezing host or neighbors | not yet run | not yet run | not yet run | not yet run | not yet run |
 | **CHAOS-04: Service Kill (Cascading)** | Terminate pods across all 6 microservices concurrently | ReplicaSets spawn replacements; rolling readiness probes prevent bad route registration | not yet run | not yet run | not yet run | not yet run | not yet run |
-| **CHAOS-05: Redis Cache Outage** | Scale Redis deployment to 0 replicas | Gateway falls back to in-memory rate limiting with `passOnStoreError: true`; zero 500 errors | not yet run (Unit test verified in Jest) | not yet run | not yet run | not yet run | not yet run |
+| **CHAOS-05: Redis Cache Outage** | Scale Redis deployment to 0 replicas | Check whether gateway uses its in-memory rate-limit fallback and record request outcomes | not yet run (fallback behavior covered by gateway Jest tests) | not yet run | not yet run | not yet run | not yet run |
 | **CHAOS-06: K8s API Network Isolation** | Ingress/Egress NetworkPolicy blocking cluster-sync-service from K8s API (443) | Watch connection drops; `/api/v1/cluster/status` transitions to `STALE`; exponential backoff reconnects | not yet run | not yet run | not yet run | not yet run | not yet run |
 
 ---

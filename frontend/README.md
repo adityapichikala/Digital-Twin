@@ -1,6 +1,6 @@
 # TwinDigital Frontend SPA
 
-The TwinDigital user interface is a high-performance Single Page Application (SPA) built with React 18, Vite, and TypeScript. It provides interactive digital twin visualization, topology graphs, what-if simulations, and AWS/Kubernetes cost analytics.
+The TwinDigital user interface is a Single Page Application (SPA) built with React 19, Vite, and TypeScript. It provides interactive digital twin visualization, topology graphs, what-if simulations, and AWS/Kubernetes cost analytics.
 
 ## Core Capabilities
 - **Topology Canvas**: Interactive directed acyclic graph (DAG) rendered with `@xyflow/react` and Dagre hierarchical layout, visualizing Kubernetes Nodes, Pods, Deployments, and Services.

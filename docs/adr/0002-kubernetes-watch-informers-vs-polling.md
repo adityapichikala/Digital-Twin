@@ -43,8 +43,8 @@ We selected the **`SharedIndexInformer`** mechanism implemented in [`cluster-syn
 | Dimension | Fixed-Interval Polling | SharedIndexInformer (List + Watch) |
 | :--- | :--- | :--- |
 | **API Server Load** | **High & Inefficient**: Full resource dumps requested repeatedly, overloading etcd and API server CPU. | **Ultra-Low Overhead**: Initial `List` once per startup, followed by lightweight HTTP chunked streaming delta events. |
-| **Update Latency** | **$15–30\text{ seconds}$ lag** depending on schedule interval. | **Sub-second ($< 100\text{ ms}$)**: Events dispatched immediately upon etcd commit. |
-| **Transient Events** | **Missed entirely**: Pods terminating between polls vanish without record. | **100% Captured**: DeltaFIFO guarantees delivery of all `Add`, `Update`, and `Delete` events. |
+| **Update Latency** | Depends on the configured polling interval. | Event-driven updates; live propagation latency has not been measured. |
+| **Transient Events** | A resource that starts and ends between polls may not appear in a snapshot. | Event handlers process `Add`, `Update`, and `Delete` notifications; capture rate has not been measured. |
 | **Network Consumption**| Massive bandwidth bursts transferring full JSON arrays every tick. | Minimal bandwidth: Only transfers individual serialized resource diffs. |
 | **Staleness Tracking** | Hard to detect if API server is partially degraded or silently failing. | Built-in: Watch drop triggers `STALE` health status and exponential backoff reconnection. |
 
@@ -69,7 +69,7 @@ We selected the **`SharedIndexInformer`** mechanism implemented in [`cluster-syn
 ## 6. Consequences
 
 ### Positive:
-* Immediate responsiveness in the backend database: deleting a pod via `kubectl delete pod` persists the delta into PostgreSQL in less than 500 milliseconds, displayed in the ReactFlow UI on the next 5-second poll without manual page reload.
+* The backend processes informer events and persists resource changes to PostgreSQL. Live event-to-database latency has not been measured; the UI polls on a five-second interval.
 * Drastically reduced load on the EKS control plane.
 
 ### Negative / Trade-offs:

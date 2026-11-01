@@ -1,11 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import TopologyPage from './pages/TopologyPage';
 import SimulationPage from './pages/SimulationPage';
 import CostRiskPage from './pages/CostRiskPage';
 import useAuthStore from './store/authStore';
+
+const TopologyPage = lazy(() => import('./pages/TopologyPage'));
 
 function PrivateLayout({ children }) {
   const token = useAuthStore((s) => s.token);
@@ -35,7 +37,11 @@ export default function App() {
         <PrivateLayout><DashboardPage /></PrivateLayout>
       } />
       <Route path="/topology" element={
-        <PrivateLayout><TopologyPage /></PrivateLayout>
+        <PrivateLayout>
+          <Suspense fallback={<div role="status">Loading topology…</div>}>
+            <TopologyPage />
+          </Suspense>
+        </PrivateLayout>
       } />
       <Route path="/simulate" element={
         <PrivateLayout><AdminOnlyRoute><SimulationPage /></AdminOnlyRoute></PrivateLayout>

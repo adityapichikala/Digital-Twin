@@ -125,7 +125,7 @@ RuntimeDefault
 A cluster-wide `default-deny-all` NetworkPolicy blocks all ingress and egress in `twindigital`. Microservices can **only** talk along explicit paths defined in individual policies:
 1. `ingress-nginx` $\rightarrow$ `gateway:8080`, `frontend:8080`
 2. `gateway` $\rightarrow$ internal services (`auth:8081`, `sync:8082`, `topology:8083`, `simulation:8084`, `cost-risk:8085`) and `redis:6379`
-3. `services` $\rightarrow$ `postgres:5432` and `redis:6379`
+3. Database-using services $\rightarrow$ PostgreSQL (`5432`); `auth-service` and `gateway` $\rightarrow$ Redis/ElastiCache (`6379`)
 4. `simulation-service` $\rightarrow$ `topology:8083`, `cost-risk:8085`, `postgres:5432`
 5. `cost-risk-service` $\rightarrow$ `prometheus:9090` and external AWS HTTPS (`443`)
 6. `cluster-sync-service` $\rightarrow$ Kubernetes API Server (`443/6443`) and `postgres:5432`

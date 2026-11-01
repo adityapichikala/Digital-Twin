@@ -10,9 +10,10 @@ This is a suggested three-minute walkthrough of the local MVP. Every capability 
 
 ## Verified evidence
 
-- **[Verified — run locally on 2026-11-01]** The Compose stack started with all nine services healthy. Gateway login returned an `ADMIN` session, and the authenticated topology endpoint returned 18 nodes and 19 edges from its built-in demo graph.
-- **[Verified — automated test counts]** Gateway Jest tests: 17/17 passed. Java service tests recorded in [`RESULTS_TEMPLATE.md`](./testing/RESULTS_TEMPLATE.md): 91/91 total (auth 19, cluster-sync 25, topology 8, simulation 24, cost-risk 15).
-- **[Verified — run locally on 2026-11-01]** Frontend typecheck and build passed; lint completed with three warnings and no errors.
+- **[Verified — run locally on 2026-11-01]** Gateway login returned an `ADMIN` session, and the authenticated topology endpoint returned its built-in demo graph.
+- **[Verified — run locally on 2026-11-02]** `docker compose up --build -d` brought all nine services to healthy. The topology API returned `dataSource: SEED` with 18 nodes and 19 edges; simulation returned `seedSnapshotUsed: true`. Neither response represents a live cluster snapshot.
+- **[Verified — automated test counts]** Gateway Jest tests: 17/17 passed (run locally on 2026-11-01). Java service suites: 92/92 passed (auth 19, topology 8, simulation 25, and cost-risk 15 run locally on 2026-11-02; cluster-sync 25 last run on 2026-11-01).
+- **[Verified — run locally on 2026-11-02]** Frontend typecheck and build passed; lint completed with three warnings and no errors.
 - **[Planned]** Live-cluster synchronization latency, load, chaos, and simulation accuracy remain not yet run.
 
 ## Before the demo
@@ -24,14 +25,14 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Open the frontend at `http://localhost:8088`. The default local login is `admin` / `AdminPassword123!` unless `.env` overrides it. Without `KUBECONFIG_BASE64`, cluster-sync has no live cluster connection and topology uses the seeded demo graph.
+Open the frontend at `http://localhost:8088`. Set `BOOTSTRAP_ADMIN_USERNAME` and a unique `BOOTSTRAP_ADMIN_PASSWORD` in `.env` before starting Compose. Without `KUBECONFIG_BASE64`, cluster-sync has no live cluster connection and topology uses the seeded demo graph.
 
 ## Suggested timeline
 
 | Time | Capability and status | What to show |
 |---|---|---|
 | 0:00–0:30 | **[Verified — local Compose run, 2026-11-01]** Service startup and gateway login API | Show `docker compose ps`, then call the login endpoint and show the returned `ADMIN` role. The gateway API login was verified; this does not claim a browser-based end-to-end test. |
-| 0:30–1:10 | **[Implemented] [Verified — local API run, 2026-11-01]** Topology page and seeded graph | Open the topology route if presenting the UI, then show the authenticated API response: 18 nodes and 19 edges. Clarify that the API run used demo data, not a live EKS snapshot. |
+| 0:30–1:10 | **[Implemented] [Verified — local API run, 2026-11-01]** Topology page and seeded graph | Open the topology route if presenting the UI, then show the authenticated API response: 18 nodes and 19 edges with `dataSource: SEED`. Clarify that this is the built-in demo snapshot, not live cluster data. |
 | 1:10–1:45 | **[Implemented] [Planned verification]** Cluster sync and blast-radius analysis | Explain the List+Watch integration and BFS traversal in the code. State that live cluster sync latency and blast-radius accuracy have not yet been measured. |
 | 1:45–2:20 | **[Implemented] [Planned verification]** What-if simulation | Show the simulation workbench and describe its five implemented checks: scheduling fit, limit sanity, node removal/PDB impact, HPA impact, and blast radius. Avoid quoting latency, risk accuracy, or a specific result as measured. |
 | 2:20–2:45 | **[Implemented] [Planned verification]** Cost and right-sizing | Show the cost-risk page and explain its Prometheus and AWS Cost Explorer integrations. The local Compose stack does not include Prometheus or AWS billing credentials, so do not present live spend or savings figures. |
@@ -44,7 +45,7 @@ To repeat the verified gateway flow, sign in and copy `accessToken` from the res
 ```bash
 curl -sS -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"AdminPassword123!"}'
+  -d "{\"username\":\"${BOOTSTRAP_ADMIN_USERNAME:-admin}\",\"password\":\"${BOOTSTRAP_ADMIN_PASSWORD}\"}"
 ```
 
 Use that token to retrieve topology:
@@ -56,7 +57,7 @@ curl -sS http://localhost:3000/api/v1/topology \
 
 ## Limitations to state during the presentation
 
-- **[Planned]** No live EKS cluster was connected during the recorded local run; the graph came from the built-in demo data.
+- **[Verified — local Compose run, 2026-11-01]** No live Kubernetes cluster was connected during the recorded local run; topology returned `dataSource: SEED` and simulation uses a seeded snapshot when its cluster tables are empty.
 - **[Planned]** Load, chaos, and simulation-accuracy runs have not been executed. Their results are marked “not yet run” in [`RESULTS_TEMPLATE.md`](./testing/RESULTS_TEMPLATE.md).
 - **[Implemented, external setup required]** Prometheus and AWS Cost Explorer integrations exist in code but need external services and credentials for live data.
 - **[Verified — frontend lint, 2026-11-01]** The frontend linter reports three React effect warnings; typecheck and build pass.

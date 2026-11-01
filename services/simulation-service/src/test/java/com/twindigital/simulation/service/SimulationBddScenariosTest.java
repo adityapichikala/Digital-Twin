@@ -100,6 +100,30 @@ class SimulationBddScenariosTest {
                 .build();
     }
 
+    @Test
+    @DisplayName("Seed snapshot fallback is exposed in simulation results")
+    void shouldMarkSeedSnapshotInSimulationResult() {
+        when(nodeRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
+        when(podRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
+        when(deploymentRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
+        when(hpaRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
+        when(pdbRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
+        when(serviceRepository.findByClusterName(CLUSTER)).thenReturn(Collections.emptyList());
+
+        SimulationResult result = simulationEngine.runSimulation(SimulationRequest.builder()
+                .clusterName(CLUSTER)
+                .changeSet(ChangeSet.builder()
+                        .kind(ChangeKind.SCALE)
+                        .target("billing-service")
+                        .replicas(3)
+                        .cpuRequest("100m")
+                        .memRequest("256Mi")
+                        .build())
+                .build());
+
+        assertThat(result.isSeedSnapshotUsed()).isTrue();
+    }
+
     // ── SCENARIO 1: Perfect Fit (Low Risk) ──────────────────────────────────────
     @Test
     @DisplayName("Scenario 1: Given cluster with surplus capacity, When scale deployment moderately, Then risk is LOW")

@@ -11,9 +11,10 @@ TwinDigital is an MVP for exploring Kubernetes topology and proposed workload ch
 
 ## Status at a glance
 
-- **[Verified — local run on 2026-11-01]** `docker compose up --build -d` brought all nine Compose services to healthy. Login through the gateway succeeded as `ADMIN`; the authenticated topology endpoint returned 18 nodes and 19 edges from the built-in demo graph.
-- **[Verified — automated tests]** Gateway Jest: 17/17 passed. Java service suites: 91/91 recorded (auth 19, cluster sync 25, topology 8, simulation 24, cost-risk 15); see [test results](./docs/testing/RESULTS_TEMPLATE.md).
-- **[Verified — local checks on 2026-11-01]** Frontend lint completed with 3 warnings and no errors; TypeScript typecheck and production build passed.
+- **[Verified — local run on 2026-11-01]** Login through the gateway succeeded as `ADMIN`; the authenticated topology endpoint returned the built-in demo graph.
+- **[Verified — local run on 2026-11-02]** `docker compose up --build -d` brought all nine Compose services to healthy. The topology service returned `dataSource: SEED` with 18 nodes and 19 edges; simulation returned `seedSnapshotUsed: true` without a connected Kubernetes cluster.
+- **[Verified — automated tests]** Gateway Jest: 17/17 passed on 2026-11-01. Java service suites: 92/92 recorded (auth 19, topology 8, simulation 25, and cost-risk 15 run on 2026-11-02; cluster-sync 25 from 2026-11-01); see [test results](./docs/testing/RESULTS_TEMPLATE.md).
+- **[Verified — local checks on 2026-11-02]** Frontend lint completed with 3 warnings and no errors; TypeScript typecheck and production build passed.
 - **[Implemented]** Login and role checks, Kubernetes List+Watch integration, topology and blast-radius traversal, simulation checks, cost-risk APIs, and Kubernetes deployment/monitoring manifests.
 - **[Planned — not yet run]** Live-cluster latency measurement, load testing, chaos testing, and simulation accuracy validation. Results remain marked “not yet run” in the [results template](./docs/testing/RESULTS_TEMPLATE.md).
 
@@ -158,7 +159,7 @@ cloudca/
 │   ├── testing/                         # Stress testing (k6), Chaos scripts, Simulation harness
 │   │   ├── k6/                          # k6 load testing script (ramping to N req/s)
 │   │   ├── chaos/                       # Bash & PowerShell chaos testing automation
-│   │   ├── simulation/                  # Python simulation accuracy harness + 10 fixtures + CSV
+│   │   ├── simulation/                  # Python simulation accuracy harness + 10 fixtures; CSV generated only after a run
 │   │   ├── RESULTS_TEMPLATE.md          # Results template with detection & recovery times
 │   │   └── RUNBOOK.md                   # Operational testing runbook
 │   └── DEMO_SCRIPT.md                   # 3-minute executive presentation script
@@ -191,6 +192,7 @@ Ensure Docker Desktop (or Docker Engine) and Docker Compose are installed and ru
 ```bash
 # 1. Configure local environment values
 cp .env.example .env
+# Edit .env and replace every CHANGE_ME value with a unique secret before starting Compose.
 
 # 2. Build and start the complete local MVP stack
 docker compose up --build -d
@@ -199,7 +201,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Compose starts PostgreSQL and Redis first. `cluster-sync` initializes the shared cluster tables; topology, simulation, and cost-risk wait for it to become healthy. The gateway waits for auth and the other APIs. The frontend is served by its container at [http://localhost:8088](http://localhost:8088) (host port 8080 is used by Jenkins in the project’s local environment). The default local admin is `admin` / `AdminPassword123!` unless overridden in `.env`.
+Compose starts PostgreSQL and Redis first. `cluster-sync` initializes the shared cluster tables; topology, simulation, and cost-risk wait for it to become healthy. The gateway waits for auth and the other APIs. The frontend is served by its container at [http://localhost:8088](http://localhost:8088) (host port 8080 is used by Jenkins in the project’s local environment). Set `BOOTSTRAP_ADMIN_USERNAME` and a unique `BOOTSTRAP_ADMIN_PASSWORD` in `.env`; Compose has no committed admin password default.
 
 Verify login through the gateway and use the returned `accessToken` for the topology request:
 
@@ -207,7 +209,7 @@ Verify login through the gateway and use the returned `accessToken` for the topo
 # Login; copy the accessToken value from the JSON response.
 curl -sS -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"AdminPassword123!"}'
+  -d "{\"username\":\"${BOOTSTRAP_ADMIN_USERNAME:-admin}\",\"password\":\"${BOOTSTRAP_ADMIN_PASSWORD}\"}"
 
 # Replace <accessToken> with that value.
 curl -sS http://localhost:3000/api/v1/topology \
@@ -241,11 +243,11 @@ The TwinDigital platform incorporates automated test suites, load testing script
 ### 1. Test Suite Coverage Summary (Measured)
 * **Express Gateway Unit & Resilience Tests**: **17 / 17 Jest tests pass cleanly (100%)**, verifying JWT authentication, revoked token rejection (401), forged token rejection (401), role-based access control (`VIEWER` $\rightarrow$ 403 on `/simulate` routes, `ADMIN` allowed), proxy route preservation and path rewriting, `ResilientStore` rate limiting with in-memory fallback on Redis outage (`passOnStoreError: true`), and Prometheus metric exports.
 * **Frontend SPA Static Analysis**: **TypeScript compilation (0 errors)** and **oxlint (0 errors, 3 warnings)** verified cleanly.
-* **Java Microservices Unit & BDD Test Suites**: All microservices pass 100% unit and integration tests (**91 / 91 passed**):
+* **Java Microservices Unit & BDD Test Suites**: **92 / 92 tests passed** across auth (19), cluster-sync (25), topology (8), simulation (25), and cost-risk (15). Auth, topology, simulation, and cost-risk were run on 2026-11-02; cluster-sync was last run on 2026-11-01.
   * **auth-service**: **19 / 19 passed (100%)** (`AuthServiceTest`, `JwtTokenProviderTest`, `AuthServiceApplicationTest`, `AdminUserBootstrapTest`)
   * **cluster-sync-service**: **25 / 25 passed (100%)** (`SyncControllerTest`, `ClusterSyncMetricsTest`, `KubernetesResourceMapperTest`, `KubernetesResourcePersisterTest`, `SyncHealthTrackerTest`)
   * **topology-service**: **8 / 8 passed (100%)** (`TopologyControllerTest`, `TopologyGraphServiceTest`)
-  * **simulation-service**: **24 / 24 passed (100%)** (`SimulationChecksUnitTest`, `SimulationControllerTest`, `CostOptimizationServiceTest`, `SimulationBddScenariosTest`)
+  * **simulation-service**: **25 / 25 passed (100%)** (`SimulationChecksUnitTest`, `SimulationControllerTest`, `CostOptimizationServiceTest`, `SimulationBddScenariosTest`)
   * **cost-risk-service**: **15 / 15 passed (100%)** (`AwsCostExplorerClientTest`, `PrometheusClientTest`, `CostRiskControllerTest`, `CostRiskServiceTest`)
 
 ### 2. k6 Load Testing Performance Benchmark

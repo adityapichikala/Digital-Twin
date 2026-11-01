@@ -108,6 +108,7 @@ public class SimulationModels {
         private String predictedOutcome;
         private ClusterCapacitySummary capacitySummary;
         private Double costDelta;
+        private boolean seedSnapshotUsed;
         private Instant executedAt;
     }
 }

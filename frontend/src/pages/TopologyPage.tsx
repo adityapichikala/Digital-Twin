@@ -167,6 +167,7 @@ export default function TopologyPage() {
   // UI state
   const [loading, setLoading] = useState<boolean>(false);
   const [isDemoData, setIsDemoData] = useState<boolean>(true);
+  const [demoDataMessage, setDemoDataMessage] = useState('Using the local fallback graph because the topology API is unavailable.');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [direction, setDirection] = useState<LayoutDirection>('TB');
   const [selectedNode, setSelectedNode] = useState<BackendTopologyNode | null>(null);
@@ -193,11 +194,16 @@ export default function TopologyPage() {
         setRawEdges(res.data.edges || []);
         if (res.data.health) setHealthSummary(res.data.health);
         if (res.data.staleness) setStaleness(res.data.staleness);
-        setIsDemoData(false);
+        const usingSeedData = res.data.dataSource === 'SEED';
+        setIsDemoData(usingSeedData);
+        setDemoDataMessage(usingSeedData
+          ? 'The topology API returned its seeded snapshot. This is not live cluster data.'
+          : 'Using live topology data from the connected cluster.');
       }
     } catch (err) {
       console.warn('Unable to load live topology, retaining cached data:', err);
       setIsDemoData(true);
+      setDemoDataMessage('Using the local fallback graph because the topology API is unavailable.');
     } finally {
       if (!isBackground) setLoading(false);
     }
@@ -430,7 +436,7 @@ export default function TopologyPage() {
           >
             DEMO DATA
           </span>
-          <span>Topology backend service is offline. Displaying static cluster graph demo data.</span>
+          <span>{demoDataMessage}</span>
         </div>
       )}
 

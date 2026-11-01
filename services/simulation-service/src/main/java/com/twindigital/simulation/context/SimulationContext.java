@@ -24,6 +24,9 @@ public class SimulationContext {
     private ChangeSet changeSet;
 
     @Builder.Default
+    private boolean seedSnapshotUsed = false;
+
+    @Builder.Default
     private List<ClusterNodeEntity> nodes = new ArrayList<>();
     @Builder.Default
     private List<ClusterPodEntity> pods = new ArrayList<>();

@@ -187,7 +187,7 @@ app.use('/api/v1/cluster', requireRole('VIEWER', 'ADMIN'), clusterSyncRoutes);
 # 1. Obtain JWT token
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"AdminPassword123!"}' | jq -r .accessToken)
+  -d "{\"username\":\"${BOOTSTRAP_ADMIN_USERNAME:-admin}\",\"password\":\"${BOOTSTRAP_ADMIN_PASSWORD}\"}" | jq -r .accessToken)
 
 # 2. Query cluster sync status via proxy route
 curl -i -X GET http://localhost:8080/api/v1/cluster/status \

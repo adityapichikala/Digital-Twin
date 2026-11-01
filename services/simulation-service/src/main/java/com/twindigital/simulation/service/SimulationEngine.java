@@ -94,6 +94,7 @@ public class SimulationEngine {
                 .predictedOutcome(predictedOutcome)
                 .capacitySummary(capacitySummary)
                 .costDelta(costDelta)
+                .seedSnapshotUsed(context.isSeedSnapshotUsed())
                 .executedAt(Instant.now())
                 .build();
 
@@ -112,7 +113,8 @@ public class SimulationEngine {
         List<ClusterPdbEntity> dbPdbs = pdbRepository.findByClusterName(clusterName);
         List<ClusterServiceEntity> dbServices = serviceRepository.findByClusterName(clusterName);
 
-        if (dbNodes.isEmpty() && dbPods.isEmpty() && dbDeployments.isEmpty()) {
+        boolean seedSnapshotUsed = dbNodes.isEmpty() && dbPods.isEmpty() && dbDeployments.isEmpty();
+        if (seedSnapshotUsed) {
             log.info("DB snapshot empty for cluster '{}'; using realistic seed snapshot", clusterName);
             dbNodes = createDefaultSeedNodes(clusterName);
             dbPods = createDefaultSeedPods(clusterName);
@@ -132,6 +134,7 @@ public class SimulationEngine {
                 .hpas(dbHpas)
                 .pdbs(dbPdbs)
                 .services(dbServices)
+                .seedSnapshotUsed(seedSnapshotUsed)
                 .blastRadiusResolver(this::fetchTopologyBlastRadius)
                 .build();
     }

@@ -73,6 +73,7 @@ public class TopologyDTOs {
         private List<TopologyEdge> edges;
         private ClusterHealthSummary health;
         private StalenessInfo staleness;
+        private String dataSource;
     }
 
     @Data

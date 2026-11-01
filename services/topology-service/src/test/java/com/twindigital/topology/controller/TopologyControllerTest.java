@@ -71,6 +71,7 @@ class TopologyControllerTest {
                 .edges(List.of(edge))
                 .health(health)
                 .staleness(staleness)
+                .dataSource("LIVE")
                 .build();
 
         when(topologyGraphService.getTopology(any())).thenReturn(response);
@@ -81,6 +82,7 @@ class TopologyControllerTest {
                 .andExpect(jsonPath("$.nodes[0].name").value("auth-service"))
                 .andExpect(jsonPath("$.edges[0].id").value("e1"))
                 .andExpect(jsonPath("$.health.overallStatus").value("HEALTHY"))
+                .andExpect(jsonPath("$.dataSource").value("LIVE"))
                 .andExpect(jsonPath("$.staleness.isStale").value(false));
     }
 

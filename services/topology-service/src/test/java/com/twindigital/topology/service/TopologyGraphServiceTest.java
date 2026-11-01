@@ -65,6 +65,7 @@ class TopologyGraphServiceTest {
         assertThat(response.getEdges()).isNotEmpty();
         assertThat(response.getHealth()).isNotNull();
         assertThat(response.getStaleness()).isNotNull();
+        assertThat(response.getDataSource()).isEqualTo("SEED");
 
         // Verify Node > Pod > Deployment > Service nodes exist in seed topology
         boolean hasNode = response.getNodes().stream().anyMatch(n -> "NODE".equals(n.getType()));
@@ -172,6 +173,7 @@ class TopologyGraphServiceTest {
         assertThat(dependsOnEdge).isTrue();
 
         assertThat(response.getStaleness().isStale()).isFalse();
+        assertThat(response.getDataSource()).isEqualTo("LIVE");
     }
 
     @Test

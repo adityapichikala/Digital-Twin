@@ -72,5 +72,5 @@ spring:
 twindigital:
   bootstrap:
     admin:
-      password: ${BOOTSTRAP_ADMIN_PASSWORD:AdminPassword123!}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 

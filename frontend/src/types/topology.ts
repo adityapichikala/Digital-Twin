@@ -77,6 +77,7 @@ export interface TopologyResponse {
   edges: BackendTopologyEdge[];
   health: ClusterHealthSummary;
   staleness: StalenessInfo;
+  dataSource: 'LIVE' | 'SEED';
 }
 
 export interface BlastRadiusResponse {

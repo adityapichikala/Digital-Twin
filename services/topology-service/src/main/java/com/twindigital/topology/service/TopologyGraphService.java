@@ -37,12 +37,15 @@ public class TopologyGraphService {
 
         List<TopologyNode> nodes = new ArrayList<>();
         List<TopologyEdge> edges = new ArrayList<>();
+        String dataSource;
 
         if (dbNodes.isEmpty() && dbPods.isEmpty() && dbDeployments.isEmpty() && dbServices.isEmpty()) {
             // Provide realistic seed topology for TwinDigital EKS cluster
             populateDefaultTopology(nodes, edges);
+            dataSource = "SEED";
         } else {
             buildFromDatabase(clusterName, dbNodes, dbPods, dbDeployments, dbServices, nodes, edges);
+            dataSource = "LIVE";
         }
 
         // Calculate health metrics
@@ -56,6 +59,7 @@ public class TopologyGraphService {
                 .edges(edges)
                 .health(health)
                 .staleness(staleness)
+                .dataSource(dataSource)
                 .build();
     }
 

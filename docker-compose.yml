@@ -70,7 +70,7 @@ services:
       SERVER_PORT: 8081
       JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_key_32_characters_minimum}
       BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-AdminPassword123!}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in .env}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@twindigital.local}
       SPRING_DATA_REDIS_URL: redis://:${REDIS_PASSWORD:-twindigital_redis_pass}@redis:6379
     depends_on:

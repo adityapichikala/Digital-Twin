@@ -47,6 +47,7 @@ class SimulationControllerTest {
                 .simulationId(simId.toString())
                 .riskLevel(RiskLevel.LOW)
                 .score(10)
+                .seedSnapshotUsed(true)
                 .predictedOutcome("Change is safe to apply")
                 .findings(List.of(SimulationFinding.builder()
                         .check("SchedulingFit")
@@ -80,6 +81,7 @@ class SimulationControllerTest {
                 .andExpect(jsonPath("$.simulationId").value(simId.toString()))
                 .andExpect(jsonPath("$.riskLevel").value("LOW"))
                 .andExpect(jsonPath("$.score").value(10))
+                .andExpect(jsonPath("$.seedSnapshotUsed").value(true))
                 .andExpect(jsonPath("$.predictedOutcome").value("Change is safe to apply"));
     }
 

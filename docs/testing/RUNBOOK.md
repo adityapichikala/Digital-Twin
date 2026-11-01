@@ -131,7 +131,7 @@ python docs/testing/simulation/simulation-accuracy-harness.py
 
 ### Output Artifacts
 1. **Console Summary**: Displays per-scenario prediction vs. actual cluster behavior.
-2. **CSV Report** ([`simulation_accuracy_results.csv`](./simulation/simulation_accuracy_results.csv)):
+2. **CSV Report** (generated at `docs/testing/simulation/simulation_accuracy_results.csv` only after a completed harness run; no unverified result CSV is committed):
    - Columns: `Scenario_ID`, `Scenario_Name`, `Change_Kind`, `Target`, `Predicted_Risk`, `Actual_Risk`, `Predicted_Checks`, `Actual_Checks`, `Cluster_Behavior`, `Outcome_Match`, `Accuracy_Score`.
 3. **Threshold**: Platform acceptance requires **$\ge 90.0\%$ accuracy** across all 10 fixture scenarios.
 

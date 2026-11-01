@@ -7,11 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-
-import java.util.Arrays;
 
 /**
  * Bootstrap component to ensure the seed admin user is created/updated from environment variables.
@@ -23,8 +20,6 @@ public class AdminUserBootstrap implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final Environment environment;
-
     @Value("${twindigital.bootstrap.admin.username:admin}")
     private String adminUsername;
 
@@ -36,11 +31,8 @@ public class AdminUserBootstrap implements CommandLineRunner {
 
     @PostConstruct
     public void validate() {
-        boolean isLocal = Arrays.asList(environment.getActiveProfiles()).contains("local");
-        if (isLocal && (adminPassword == null || adminPassword.trim().isEmpty())) {
-            adminPassword = "AdminPassword123!";
-        } else if (!isLocal && (adminPassword == null || adminPassword.trim().isEmpty())) {
-            throw new IllegalStateException("BOOTSTRAP_ADMIN_PASSWORD is required when active profile is not 'local'");
+        if (adminPassword == null || adminPassword.isBlank()) {
+            throw new IllegalStateException("BOOTSTRAP_ADMIN_PASSWORD is required to bootstrap the admin user");
         }
     }
 

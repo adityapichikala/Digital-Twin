@@ -17,8 +17,8 @@ const totalRequests = new Counter('twin_total_requests');
 const simulationDuration = new Trend('twin_simulation_duration');
 
 // Configurable environment parameters
-const BASE_URL = __ENV.GATEWAY_URL || 'http://localhost:8080';
-const TARGET_RPS = parseInt(__ENV.TARGET_RPS || '500', 10);
+const BASE_URL = __ENV.GATEWAY_URL || 'http://localhost:3000';
+const TARGET_RPS = parseInt(__ENV.TARGET_RPS || '1000', 10);
 const JWT_TOKEN = __ENV.JWT_TOKEN || ''; // Or dynamic login fallback
 
 export const options = {
@@ -51,9 +51,12 @@ export function setup() {
   // If no token is passed, obtain one via auth-service login
   let token = JWT_TOKEN;
   if (!token) {
+    if (!__ENV.ADMIN_PASSWORD) {
+      throw new Error('Set ADMIN_PASSWORD or provide JWT_TOKEN before running the authenticated gateway load test.');
+    }
     const loginPayload = JSON.stringify({
       username: __ENV.ADMIN_USERNAME || 'admin',
-      password: __ENV.ADMIN_PASSWORD || 'AdminPassword123!',
+      password: __ENV.ADMIN_PASSWORD,
     });
     const loginRes = http.post(`${BASE_URL}/api/auth/login`, loginPayload, {
       headers: { 'Content-Type': 'application/json' },
@@ -132,13 +135,16 @@ export default function (data) {
     // 5. Simulation Engine Assessment Run
     group('POST /api/v1/simulations/run', () => {
       const payload = JSON.stringify({
-        kind: 'SCALE',
-        target: 'billing-service',
-        replicas: 3,
-        cpuRequest: '150m',
-        memRequest: '256Mi',
-        cpuLimit: '300m',
-        memLimit: '512Mi',
+        clusterName: 'twindigital-cluster',
+        changeSet: {
+          kind: 'SCALE',
+          target: 'billing-service',
+          replicas: 3,
+          cpuRequest: '150m',
+          memRequest: '256Mi',
+          cpuLimit: '300m',
+          memLimit: '512Mi',
+        },
       });
       const res = http.post(`${BASE_URL}/api/v1/simulations/run`, payload, { headers });
       totalRequests.add(1);

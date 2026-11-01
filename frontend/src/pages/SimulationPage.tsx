@@ -40,6 +40,7 @@ interface SimulationResult {
   findings: Finding[];
   capacitySummary?: CapacitySummary;
   costDelta?: number | null;
+  seedSnapshotUsed?: boolean;
   executedAt: string;
 }
 
@@ -144,7 +145,7 @@ export default function SimulationPage() {
         res = await api.post<SimulationResult>('/api/simulations', payload);
       }
       setResult(res.data);
-      setIsDemoData(false);
+      setIsDemoData(Boolean(res.data.seedSnapshotUsed));
     } catch (err: any) {
       console.warn('Simulation API offline; computing client-side fallback demonstration:', err);
       setIsDemoData(true);
@@ -203,6 +204,7 @@ export default function SimulationPage() {
         predictedOutcome: outcome,
         findings,
         costDelta: fallbackCostDelta,
+        seedSnapshotUsed: false,
         executedAt: new Date().toISOString(),
       });
     } finally {
@@ -231,7 +233,7 @@ export default function SimulationPage() {
           <Zap size={22} className="text-accent" /> What-If Simulation Workbench
         </h2>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-          Real checks against synced cluster state (bin-packing scheduling, limit sanity, PDB disruption, HPA capacity, and blast radius).
+          Evaluate proposed changes against the available cluster snapshot (scheduling, limit sanity, PDB disruption, HPA capacity, and blast radius). Local Compose uses a seeded snapshot; live cluster data requires cluster-sync to connect to Kubernetes.
         </p>
       </div>
 
@@ -388,7 +390,9 @@ export default function SimulationPage() {
               >
                 DEMO DATA
               </span>
-              <span>Simulation backend is offline. Displaying client-side fallback demonstration.</span>
+              <span>{result?.seedSnapshotUsed
+                ? 'The simulation API used its seeded cluster snapshot. This is not live cluster data.'
+                : 'Simulation backend is offline. Displaying a client-side fallback demonstration.'}</span>
             </div>
           )}
 
